@@ -934,74 +934,12 @@
     </div>
   </div>
 
-  <!-- LOGIC SCRIPT -->
+    <!-- LOGIC SCRIPT -->
   <script>
+    const GOOGLE_CLIENT_ID = "701662894116-c4gslc2e99gmg9dhhivreedq32sbpdhh.apps.googleusercontent.com";
     let HUB_SERVER = localStorage.getItem("chillup_hub_server") || window.location.origin;
     if (HUB_SERVER.startsWith("file://") || !HUB_SERVER || HUB_SERVER.includes("localhost")) {
       HUB_SERVER = "https://iptv-app-proxy.natee-bumrungsiri.workers.dev";
-    }
-
-    
-            let googleClientId = "701662894116-c4gslc2e99gmg9dhhivreedq32sbpdhh.apps.googleusercontent.com";
-
-    function initGoogleAuth() {
-      const activeId = googleClientId || "701662894116-c4gslc2e99gmg9dhhivreedq32sbpdhh.apps.googleusercontent.com";
-      
-      // Update data-client_id on g_id_onload if present
-      const gOnload = document.getElementById("g_id_onload");
-      if (gOnload) gOnload.setAttribute("data-client_id", activeId);
-
-      if (window.google && window.google.accounts && window.google.accounts.id) {
-        try {
-          google.accounts.id.initialize({
-            client_id: activeId,
-            callback: handleGoogleSignIn,
-            auto_select: false,
-            cancel_on_tap_outside: true
-          });
-          const container = document.getElementById("googleSignInWrapper");
-          if (container) {
-            google.accounts.id.renderButton(
-              container,
-              { 
-                theme: document.documentElement.getAttribute("data-theme") === "dark" ? "filled_black" : "outline", 
-                size: "large", 
-                width: Math.min(340, window.innerWidth - 80), 
-                text: "sign_in_with", 
-                shape: "rectangular",
-                logo_alignment: "left"
-              }
-            );
-          }
-        } catch (e) {
-          console.warn("Google Render Warning:", e);
-        }
-      } else {
-        setTimeout(initGoogleAuth, 300);
-      }
-    }
-
-    function openOAuthHelpModal() {
-      document.getElementById("customGoogleClientIdInput").value = localStorage.getItem("chillup_google_client_id") || "";
-      document.getElementById("oauthHelpModal").style.display = "flex";
-    }
-    function closeOAuthHelpModal() {
-      document.getElementById("oauthHelpModal").style.display = "none";
-    }
-    function saveGoogleClientId() {
-      const id = document.getElementById("customGoogleClientIdInput").value.trim();
-      if (id) {
-        localStorage.setItem("chillup_google_client_id", id);
-        googleClientId = id;
-        closeOAuthHelpModal();
-        initGoogleAuth();
-        alert("✅ บันทึก Google Client ID สำเร็จ!");
-      } else {
-        localStorage.removeItem("chillup_google_client_id");
-        googleClientId = "";
-        closeOAuthHelpModal();
-        initGoogleAuth();
-      }
     }
 
     let currentUser = null;
@@ -1009,66 +947,36 @@
     let activeGroupFilter = "ALL";
     let editingIndex = -1;
 
-    window.addEventListener("DOMContentLoaded", () => {
-      checkAuthAndInit();
-      initGoogleAuth();
-    });
-
-    function toggleTheme() {
-      const current = document.documentElement.getAttribute("data-theme") || "dark";
-      const next = current === "dark" ? "light" : "dark";
-      document.documentElement.setAttribute("data-theme", next);
-      localStorage.setItem("chillup_theme", next);
-    }
-    const savedTheme = localStorage.getItem("chillup_theme");
-    if (savedTheme) document.documentElement.setAttribute("data-theme", savedTheme);
-
-    function checkAuthAndInit() {
-      const saved = localStorage.getItem("chillup_user");
-      if (saved) {
-        try {
-          currentUser = JSON.parse(saved);
-        } catch (_) {}
-      }
-
-      if (currentUser && currentUser.id) {
-        showAppScreen();
-      } else {
-        showLoginScreen();
-      }
-    }
-
-    function showLoginScreen() {
-      document.getElementById("loginScreen").style.display = "flex";
-      document.getElementById("appContainer").style.display = "none";
-      setTimeout(initGoogleAuth, 100);
-    }
-
-        function showAppScreen() {
-      console.log("Switching to App Screen for user:", currentUser);
-      const loginEl = document.getElementById("loginScreen");
-      const appEl = document.getElementById("appContainer");
-      
-      if (loginEl) {
-        loginEl.style.setProperty("display", "none", "important");
-      }
-      if (appEl) {
-        appEl.style.setProperty("display", "flex", "important");
-      }
-
-      try { updateUserUI(); } catch (e) { console.error("updateUserUI error:", e); }
-      try { renderChannels(); } catch (e) { console.error("renderChannels error:", e); }
-      try { loadMyPlaylists(); } catch (e) { console.error("loadMyPlaylists error:", e); }
-      
+    // --- JWT & AUTHENTICATION ---
+    function parseJwt(token) {
+      if (!token) return null;
       try {
-        const authorInput = document.getElementById("plAuthor");
-        if (authorInput && (!authorInput.value || authorInput.value === "Creator")) {
-          authorInput.value = (currentUser && currentUser.name) ? currentUser.name : "Creator";
+        const parts = token.split('.');
+        if (parts.length < 2) return null;
+        const base64Url = parts[1];
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const padded = base64.padEnd(base64.length + ((4 - (base64.length % 4)) % 4), '=');
+        const binary = atob(padded);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
         }
-      } catch (_) {}
+        const decoded = new TextDecoder('utf-8').decode(bytes);
+        return JSON.parse(decoded);
+      } catch (e) {
+        try {
+          const parts = token.split('.');
+          const base64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+          const json = decodeURIComponent(escape(atob(base64)));
+          return JSON.parse(json);
+        } catch (e2) {
+          console.error("JWT parse error:", e2);
+          return null;
+        }
+      }
     }
 
-    window.handleGoogleSignIn = function(response) {
+    function handleGoogleSignIn(response) {
       console.log("Google response received:", response);
       try {
         if (!response || !response.credential) {
@@ -1092,15 +1000,114 @@
         };
 
         localStorage.setItem("chillup_user", JSON.stringify(currentUser));
-        
-        // Instant visual switch
         showAppScreen();
       } catch (err) {
         console.error("Error in handleGoogleSignIn:", err);
         alert("เกิดข้อผิดพลาดในการเข้าสู่ระบบ: " + err.message);
       }
-    };
+    }
+    window.handleGoogleSignIn = handleGoogleSignIn;
 
+    function handleEmailLogin(event) {
+      if (event) event.preventDefault();
+      const nameInput = document.getElementById("loginInputName");
+      const emailInput = document.getElementById("loginInputEmail");
+      const name = nameInput ? nameInput.value.trim() : "Admin";
+      const email = emailInput ? emailInput.value.trim() : "admin@example.com";
+
+      if (!name || !email) {
+        alert("กรุณากรอกชื่อผู้ใช้งานและอีเมล");
+        return;
+      }
+
+      currentUser = {
+        id: "u_" + Math.abs(email.split("").reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0)).toString(36),
+        name: name,
+        email: email,
+        picture: ""
+      };
+
+      localStorage.setItem("chillup_user", JSON.stringify(currentUser));
+      showAppScreen();
+    }
+    window.handleEmailLogin = handleEmailLogin;
+
+    function initGoogleAuth() {
+      if (window.google && window.google.accounts && window.google.accounts.id) {
+        try {
+          google.accounts.id.initialize({
+            client_id: GOOGLE_CLIENT_ID,
+            callback: handleGoogleSignIn,
+            auto_select: false,
+            cancel_on_tap_outside: true
+          });
+          const container = document.getElementById("googleSignInWrapper");
+          if (container) {
+            google.accounts.id.renderButton(
+              container,
+              { 
+                theme: document.documentElement.getAttribute("data-theme") === "dark" ? "filled_black" : "outline", 
+                size: "large", 
+                width: Math.min(340, window.innerWidth - 60), 
+                text: "sign_in_with", 
+                shape: "rectangular",
+                logo_alignment: "left"
+              }
+            );
+          }
+        } catch (e) {
+          console.warn("Google Render Warning:", e);
+        }
+      } else {
+        setTimeout(initGoogleAuth, 250);
+      }
+    }
+
+    function checkAuthAndInit() {
+      const saved = localStorage.getItem("chillup_user");
+      if (saved) {
+        try {
+          currentUser = JSON.parse(saved);
+        } catch (_) {}
+      }
+
+      if (currentUser && currentUser.id) {
+        showAppScreen();
+      } else {
+        showLoginScreen();
+      }
+    }
+
+    function showLoginScreen() {
+      const loginEl = document.getElementById("loginScreen");
+      const appEl = document.getElementById("appContainer");
+      if (loginEl) loginEl.style.cssText = "display: flex !important;";
+      if (appEl) appEl.style.cssText = "display: none !important;";
+      setTimeout(initGoogleAuth, 100);
+    }
+
+    function showAppScreen() {
+      const loginEl = document.getElementById("loginScreen");
+      const appEl = document.getElementById("appContainer");
+      if (loginEl) loginEl.style.cssText = "display: none !important;";
+      if (appEl) appEl.style.cssText = "display: flex !important;";
+
+      try { updateUserUI(); } catch (e) { console.error("updateUserUI error:", e); }
+      try { renderChannels(); } catch (e) { console.error("renderChannels error:", e); }
+      try { loadMyPlaylists(); } catch (e) { console.error("loadMyPlaylists error:", e); }
+      
+      try {
+        const authorInput = document.getElementById("plAuthor");
+        if (authorInput && (!authorInput.value || authorInput.value === "Creator")) {
+          authorInput.value = (currentUser && currentUser.name) ? currentUser.name : "Creator";
+        }
+      } catch (_) {}
+    }
+
+    window.addEventListener("DOMContentLoaded", () => {
+      checkAuthAndInit();
+      initGoogleAuth();
+    });
 
     function logout() {
       if (confirm("คุณต้องการออกจากระบบใช่หรือไม่?")) {
