@@ -925,38 +925,39 @@
     }
 
     
-    let googleClientId = localStorage.getItem("chillup_google_client_id") || "";
+        let googleClientId = localStorage.getItem("chillup_google_client_id") || "701662894116-c4gslc2e99gmg9dhhivreedq32sbpdhh.apps.googleusercontent.com";
 
     function initGoogleAuth() {
       const container = document.getElementById("googleSignInWrapper");
       if (!container) return;
 
-      if (!googleClientId || googleClientId.includes("YOUR_GOOGLE_CLIENT_ID")) {
-        container.innerHTML = `
-          <div style="background: var(--surface-subtle); border: 1px dashed var(--border-strong); border-radius: 8px; padding: 12px; font-size: 12px; color: var(--text-muted); text-align: center;">
-            <div style="margin-bottom: 6px;">⚙️ ยังไม่ได้เชื่อม Google Client ID</div>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="openOAuthHelpModal()">🔧 ตั้งค่า Google Client ID</button>
-          </div>
-        `;
-        return;
-      }
+      const activeId = googleClientId || "701662894116-c4gslc2e99gmg9dhhivreedq32sbpdhh.apps.googleusercontent.com";
 
       if (window.google && window.google.accounts) {
         try {
           google.accounts.id.initialize({
-            client_id: googleClientId,
-            callback: handleGoogleSignIn
+            client_id: activeId,
+            callback: handleGoogleSignIn,
+            auto_select: false,
+            cancel_on_tap_outside: true
           });
           container.innerHTML = "";
           google.accounts.id.renderButton(
             container,
-            { theme: document.documentElement.getAttribute("data-theme") === "dark" ? "filled_black" : "outline", size: "large", width: 340, text: "sign_in_with", shape: "rectangular" }
+            { 
+              theme: document.documentElement.getAttribute("data-theme") === "dark" ? "filled_black" : "outline", 
+              size: "large", 
+              width: 340, 
+              text: "sign_in_with", 
+              shape: "rectangular",
+              logo_alignment: "left"
+            }
           );
         } catch (e) {
           console.error("Google Init Error:", e);
         }
       } else {
-        setTimeout(initGoogleAuth, 500);
+        setTimeout(initGoogleAuth, 400);
       }
     }
 
