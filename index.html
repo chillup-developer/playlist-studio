@@ -1044,27 +1044,21 @@
       setTimeout(initGoogleAuth, 100);
     }
 
-    function showAppScreen() {
-      try {
-        const loginEl = document.getElementById("loginScreen");
-        const appEl = document.getElementById("appContainer");
-        if (loginEl) loginEl.style.display = "none";
-        if (appEl) appEl.style.display = "flex";
-      } catch (e) {
-        console.error("Screen toggle error:", e);
+        function showAppScreen() {
+      console.log("Switching to App Screen for user:", currentUser);
+      const loginEl = document.getElementById("loginScreen");
+      const appEl = document.getElementById("appContainer");
+      
+      if (loginEl) {
+        loginEl.style.setProperty("display", "none", "important");
+      }
+      if (appEl) {
+        appEl.style.setProperty("display", "flex", "important");
       }
 
-      try {
-        updateUserUI();
-      } catch (e) { console.error("updateUserUI error:", e); }
-
-      try {
-        renderChannels();
-      } catch (e) { console.error("renderChannels error:", e); }
-
-      try {
-        loadMyPlaylists();
-      } catch (e) { console.error("loadMyPlaylists error:", e); }
+      try { updateUserUI(); } catch (e) { console.error("updateUserUI error:", e); }
+      try { renderChannels(); } catch (e) { console.error("renderChannels error:", e); }
+      try { loadMyPlaylists(); } catch (e) { console.error("loadMyPlaylists error:", e); }
       
       try {
         const authorInput = document.getElementById("plAuthor");
@@ -1074,84 +1068,39 @@
       } catch (_) {}
     }
 
-    function handleEmailLogin(e) {
-      e.preventDefault();
-      const name = document.getElementById("loginInputName").value.trim();
-      const email = document.getElementById("loginInputEmail").value.trim();
-      if (!name || !email) {
-        alert("กรุณากรอกชื่อและอีเมล/บัญชีผู้ใช้");
-        return;
-      }
-
-      const uid = "usr_" + btoa(unescape(encodeURIComponent(email))).replace(/[^a-zA-Z0-9]/g, "").substring(0, 14);
-      currentUser = {
-        id: uid,
-        name: name,
-        email: email,
-        picture: ""
-      };
-      localStorage.setItem("chillup_user", JSON.stringify(currentUser));
-      showAppScreen();
-    }
-
-    function parseJwt(token) {
-      try {
-        const base64Url = token.split('.')[1];
-        if (!base64Url) return null;
-        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-        const pad = base64.length % 4;
-        const paddedBase64 = pad ? base64 + '='.repeat(4 - pad) : base64;
-        
-        // Decode UTF-8 safely for Thai / International characters
-        const raw = atob(paddedBase64);
-        const bytes = new Uint8Array(raw.length);
-        for (let i = 0; i < raw.length; i++) {
-          bytes[i] = raw.charCodeAt(i);
-        }
-        const decoded = new TextDecoder('utf-8').decode(bytes);
-        return JSON.parse(decoded);
-      } catch (e) {
-        try {
-          const base64Url = token.split('.')[1];
-          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-          const jsonPayload = decodeURIComponent(
-            atob(base64)
-              .split('')
-              .map(function(c) {
-                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
-              })
-              .join('')
-          );
-          return JSON.parse(jsonPayload);
-        } catch (e2) {
-          console.error("JWT parse failed:", e2);
-          return null;
-        }
-      }
-    }
-
-    function handleGoogleSignIn(response) {
+    window.handleGoogleSignIn = function(response) {
+      console.log("Google response received:", response);
       try {
         if (!response || !response.credential) {
-          throw new Error("ไม่ได้รับข้อมูลการล็อกอินจาก Google");
+          alert("ไม่พบข้อมูล credential จาก Google");
+          return;
         }
+
         const payload = parseJwt(response.credential);
-        if (!payload || !payload.sub) {
-          throw new Error("ข้อมูล Token ไม่ถูกต้อง");
+        console.log("Decoded payload:", payload);
+
+        if (!payload || (!payload.sub && !payload.email)) {
+          alert("ไม่สามารถถอดรหัสข้อมูลบัญชี Google ได้");
+          return;
         }
+
         currentUser = {
-          id: "g_" + payload.sub,
-          name: payload.name || payload.email || "Google User",
+          id: "g_" + (payload.sub || btoa(payload.email).substring(0, 10)),
+          name: payload.name || payload.given_name || payload.email || "Google User",
           email: payload.email || "",
           picture: payload.picture || ""
         };
+
         localStorage.setItem("chillup_user", JSON.stringify(currentUser));
+        
+        // Instant visual switch
         showAppScreen();
       } catch (err) {
-        console.error("Google Sign In Error:", err);
-        alert("การเข้าสู่ระบบด้วย Google ไม่สำเร็จ: " + err.message);
+        console.error("Error in handleGoogleSignIn:", err);
+        alert("เกิดข้อผิดพลาดในการเข้าสู่ระบบ: " + err.message);
       }
-    }
+    };
+
 
     function logout() {
       if (confirm("คุณต้องการออกจากระบบใช่หรือไม่?")) {
