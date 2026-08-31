@@ -531,6 +531,69 @@
       padding: 48px 24px;
       color: var(--text-muted);
     }
+  
+    /* Pagination Styles */
+    .pagination-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 12px 16px;
+      background: var(--surface);
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .pagination-info {
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    .pagination-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .page-btn {
+      min-width: 32px;
+      height: 32px;
+      padding: 0 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .page-btn:hover:not(:disabled) {
+      background: var(--surface-hover);
+      border-color: var(--border-strong);
+    }
+    .page-btn.active {
+      background: var(--primary);
+      color: #ffffff;
+      border-color: var(--primary);
+      font-weight: 700;
+    }
+    .page-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .page-size-select {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 5px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      outline: none;
+      cursor: pointer;
+    }
+
   </style>
 
   <script src="https://accounts.google.com/gsi/client" async defer></script> async defer></script>
@@ -664,7 +727,7 @@
           <div class="action-group">
             <button class="btn btn-primary btn-sm" onclick="openAddChannelModal()">+ เพิ่มช่อง</button>
             <button class="btn btn-secondary btn-sm" onclick="openImportModal()">📥 นำเข้า (M3U / URL)</button>
-            <button class="btn btn-secondary btn-sm" onclick="checkAllLinks()">⚡ ตรวจสอบลิงก์</button>
+            <button class="btn btn-secondary btn-sm" id="btnCheckAllLinks" onclick="toggleCheckLinks()">⚡ ตรวจสอบลิงก์</button>
             <button class="btn btn-danger btn-sm" onclick="removeDeadChannels()">🗑️ ลบช่องเสีย</button>
           </div>
           <div class="action-group">
@@ -712,6 +775,20 @@
                 </tr>
               </tbody>
             </table>
+          </div>
+          <!-- Pagination Bar -->
+          <div class="pagination-bar" id="channelPaginationBar">
+            <div class="pagination-info" id="paginationInfoText">แสดง 0-0 จาก 0 ช่อง</div>
+            <div class="pagination-controls">
+              <select class="page-size-select" id="pageSizeSelect" onchange="changePageSize(this.value)">
+                <option value="25" selected>25 ช่อง / หน้า</option>
+                <option value="50">50 ช่อง / หน้า</option>
+                <option value="100">100 ช่อง / หน้า</option>
+                <option value="200">200 ช่อง / หน้า</option>
+                <option value="99999">ทั้งหมด (All)</option>
+              </select>
+              <div id="pageNavButtons" style="display: flex; gap: 4px;"></div>
+            </div>
           </div>
         </div>
 
@@ -1178,6 +1255,68 @@
       if (tab === "mylists") loadMyPlaylists();
     }
 
+    
+    let currentPage = 1;
+    let pageSize = 25;
+    let isCheckingLinks = false;
+    let checkLinksAbortController = null;
+
+    function toggleCheckLinks() {
+      if (isCheckingLinks) {
+        stopCheckLinks();
+      } else {
+        checkAllLinks();
+      }
+    }
+
+    function stopCheckLinks() {
+      isCheckingLinks = false;
+      if (checkLinksAbortController) {
+        try { checkLinksAbortController.abort(); } catch (_) {}
+        checkLinksAbortController = null;
+      }
+      const btn = document.getElementById("btnCheckAllLinks");
+      if (btn) {
+        btn.innerHTML = "⚡ ตรวจสอบลิงก์";
+        btn.className = "btn btn-secondary btn-sm";
+      }
+      const statusText = document.getElementById("healthStatusText");
+      if (statusText) {
+        statusText.textContent = "⏹️ หยุดการตรวจสอบสถานะแล้ว";
+        setTimeout(() => {
+          const progressBg = document.getElementById("healthProgressBg");
+          if (progressBg) progressBg.style.display = "none";
+          statusText.style.display = "none";
+        }, 2500);
+      }
+      channels.forEach(ch => {
+        if (ch.status === "checking") ch.status = "unknown";
+      });
+      renderChannels();
+    }
+
+    function changePage(pageNum) {
+      currentPage = pageNum;
+      renderChannels();
+      const tableCard = document.querySelector(".table-container");
+      if (tableCard) {
+        tableCard.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    }
+
+    function changePageSize(size) {
+      pageSize = parseInt(size, 10) || 25;
+      currentPage = 1;
+      renderChannels();
+    }
+
+    
+    function handleLogoError(img) {
+      if (!img) return;
+      img.onerror = null;
+      img.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28'><rect width='28' height='28' fill='%23334155'/><text x='50%' y='50%' fill='%2394a3b8' font-size='10' text-anchor='middle' dy='.3em'>TV</text></svg>";
+    }
+
     function renderChannels() {
       const tbody = document.getElementById("channelTableBody");
       const filter = document.getElementById("searchChannel").value.toLowerCase().trim();
@@ -1195,13 +1334,63 @@
       updateStats();
       renderGroupPills();
 
-      if (filtered.length === 0) {
+      const totalItems = filtered.length;
+      const paginationBar = document.getElementById("channelPaginationBar");
+
+      if (totalItems === 0) {
         tbody.innerHTML = '<tr><td colspan="6" class="empty-placeholder">' + (channels.length === 0 ? 'ยังไม่มีช่องในเพลย์ลิสต์นี้ — กด <b>"+ เพิ่มช่อง"</b> หรือ <b>"📥 นำเข้า"</b> เพื่อเริ่มต้น' : 'ไม่พบช่องรายการที่ตรงกับการค้นหา') + '</td></tr>';
+        if (paginationBar) paginationBar.style.display = "none";
         return;
       }
 
+      if (paginationBar) paginationBar.style.display = "flex";
+
+      const totalPages = pageSize >= 99999 ? 1 : Math.max(1, Math.ceil(totalItems / pageSize));
+      if (currentPage > totalPages) currentPage = totalPages;
+      if (currentPage < 1) currentPage = 1;
+
+      const startIndex = (currentPage - 1) * pageSize;
+      const endIndex = Math.min(startIndex + pageSize, totalItems);
+      const pageItems = (pageSize >= 99999) ? filtered : filtered.slice(startIndex, endIndex);
+
+      // Update Pagination Info
+      const infoText = document.getElementById("paginationInfoText");
+      if (infoText) {
+        infoText.innerHTML = 'แสดง <b>' + (startIndex + 1) + ' - ' + endIndex + '</b> จากทั้งหมด <b>' + totalItems + '</b> ช่อง (หน้า ' + currentPage + '/' + totalPages + ')';
+      }
+
+      // Render Pagination Buttons
+      const navButtonsContainer = document.getElementById("pageNavButtons");
+      if (navButtonsContainer) {
+        let navHtml = '';
+        if (totalPages > 1) {
+          // First & Prev
+          navHtml += '<button class="page-btn" onclick="changePage(1)" ' + (currentPage === 1 ? 'disabled' : '') + ' title="หน้าแรก">«</button>';
+          navHtml += '<button class="page-btn" onclick="changePage(' + (currentPage - 1) + ')" ' + (currentPage === 1 ? 'disabled' : '') + ' title="ก่อนหน้า">‹</button>';
+
+          // Dynamic page range calculation
+          let startPage = Math.max(1, currentPage - 2);
+          let endPage = Math.min(totalPages, currentPage + 2);
+          if (currentPage <= 3) {
+            endPage = Math.min(totalPages, 5);
+          }
+          if (currentPage >= totalPages - 2) {
+            startPage = Math.max(1, totalPages - 4);
+          }
+
+          for (let p = startPage; p <= endPage; p++) {
+            navHtml += '<button class="page-btn ' + (p === currentPage ? 'active' : '') + '" onclick="changePage(' + p + ')">' + p + '</button>';
+          }
+
+          // Next & Last
+          navHtml += '<button class="page-btn" onclick="changePage(' + (currentPage + 1) + ')" ' + (currentPage === totalPages ? 'disabled' : '') + ' title="ถัดไป">›</button>';
+          navHtml += '<button class="page-btn" onclick="changePage(' + totalPages + ')" ' + (currentPage === totalPages ? 'disabled' : '') + ' title="หน้าสุดท้าย">»</button>';
+        }
+        navButtonsContainer.innerHTML = navHtml;
+      }
+
       let html = "";
-      filtered.forEach((ch) => {
+      pageItems.forEach((ch) => {
         const origIdx = ch._origIdx;
         let statusBadge = '<span class="badge-status status-none">⚪ ยังไม่ตรวจ</span>';
         if (ch.status === "alive") {
@@ -1213,8 +1402,7 @@
         }
 
         const logoImg = ch.logo ? 
-          '<img src="' + escapeHtml(ch.logo) + '" class="channel-logo" onerror="this.src=\'data:image/svg+xml;utf8,<svg xmlns=\\\'http://www.w3.org/2000/svg\\\' width=\\\'28\\\' height=\\\'28\\\'><rect width=\\\'28\\\' height=\\\'28\\\' fill=\\\'%23334155\\\'/><text x=\\\'50%\\\' y=\\\'50%\\\' fill=\\\'%2394a3b8\\\' font-size=\\\'10\\\' text-anchor=\\\'middle\\\' dy=\\\'.3em\\\'>TV</text></svg>\'">' : 
-          '<div class="channel-logo" style="display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-faint);">TV</div>';
+          '<img src="' + escapeHtml(ch.logo) + '" class="channel-logo" onerror="handleLogoError(this)">' : '<div class="channel-logo" style="display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-faint);">TV</div>';
 
         html += '<tr>' +
           '<td style="text-align: center; color: var(--text-faint); font-weight: 500;">' + (origIdx + 1) + '</td>' +
@@ -1242,56 +1430,88 @@
       tbody.innerHTML = html;
     }
 
-    function renderGroupPills() {
-      const groups = ["ALL"];
-      channels.forEach(c => {
-        const g = c.group || "General";
-        if (!groups.includes(g)) groups.push(g);
-      });
-
-      const bar = document.getElementById("groupFilterBar");
-      let html = "";
-      groups.forEach(g => {
-        const active = g === activeGroupFilter ? "active" : "";
-        const label = g === "ALL" ? "ทั้งหมด (All)" : g;
-        html += '<div class="chip ' + active + '" onclick="selectGroup(\'' + escapeHtml(g) + '\')">' + escapeHtml(label) + '</div>';
-      });
-      bar.innerHTML = html;
-    }
-
     function selectGroup(g) {
       activeGroupFilter = g;
+      currentPage = 1;
       renderChannels();
     }
 
     function filterChannels() {
+      currentPage = 1;
       renderChannels();
     }
 
-    function updateStats() {
+    async function checkAllLinks() {
+      if (channels.length === 0) {
+        alert("ไม่มีช่องรายการในเพลย์ลิสต์ให้ตรวจสอบ");
+        return;
+      }
+
+      if (isCheckingLinks) return;
+      isCheckingLinks = true;
+
+      const btn = document.getElementById("btnCheckAllLinks");
+      if (btn) {
+        btn.innerHTML = "⏹️ หยุดตรวจสอบ";
+        btn.className = "btn btn-danger btn-sm";
+      }
+
+      const progressBg = document.getElementById("healthProgressBg");
+      const progressFill = document.getElementById("healthProgressFill");
+      const statusText = document.getElementById("healthStatusText");
+
+      if (progressBg) progressBg.style.display = "block";
+      if (statusText) {
+        statusText.style.display = "block";
+        statusText.textContent = "กำลังเริ่มตรวจสอบสถานะช่อง...";
+      }
+      if (progressFill) progressFill.style.width = "0%";
+
       const total = channels.length;
-      const groups = new Set(channels.map(c => c.group || "General")).size;
-      const alive = channels.filter(c => c.status === "alive").length;
-      const dead = channels.filter(c => c.status === "dead").length;
+      let completed = 0;
+      const concurrency = 4;
+      let queue = channels.map((ch, idx) => ({ ch, idx }));
 
-      document.getElementById("totalCountText").textContent = total;
-      document.getElementById("groupCountText").textContent = groups;
-      document.getElementById("aliveCountText").textContent = alive;
-      document.getElementById("deadCountText").textContent = dead;
-    }
+      async function worker() {
+        while (queue.length > 0 && isCheckingLinks) {
+          const item = queue.shift();
+          if (!item) break;
 
-    function moveChannel(idx, direction) {
-      const target = idx + direction;
-      if (target < 0 || target >= channels.length) return;
-      const temp = channels[idx];
-      channels[idx] = channels[target];
-      channels[target] = temp;
-      renderChannels();
-    }
+          item.ch.status = "checking";
+          renderChannels();
 
-    function deleteChannel(idx) {
-      if (confirm("ต้องการลบช่อง \"" + (channels[idx].name || "ช่องนี้") + "\" หรือไม่?")) {
-        channels.splice(idx, 1);
+          const isAlive = await probeChannelHealth(item.ch);
+          if (!isCheckingLinks) break;
+
+          item.ch.status = isAlive ? "alive" : "dead";
+
+          completed++;
+          const pct = Math.round((completed / total) * 100);
+          if (progressFill) progressFill.style.width = pct + "%";
+          if (statusText) statusText.textContent = "กำลังตรวจสอบ... " + completed + "/" + total + " ช่อง (" + pct + "%)";
+          renderChannels();
+        }
+      }
+
+      const workers = [];
+      for (let i = 0; i < Math.min(concurrency, total); i++) {
+        workers.push(worker());
+      }
+      await Promise.all(workers);
+
+      if (isCheckingLinks) {
+        isCheckingLinks = false;
+        if (btn) {
+          btn.innerHTML = "⚡ ตรวจสอบลิงก์";
+          btn.className = "btn btn-secondary btn-sm";
+        }
+        if (statusText) statusText.textContent = "✅ ตรวจสอบสถานะครบทั้งหมด " + total + " ช่องแล้ว";
+        setTimeout(() => {
+          if (!isCheckingLinks) {
+            if (progressBg) progressBg.style.display = "none";
+            if (statusText) statusText.style.display = "none";
+          }
+        }, 4000);
         renderChannels();
       }
     }
@@ -1607,56 +1827,6 @@
 
       const isAlive = await probeChannelHealth(ch);
       ch.status = isAlive ? "alive" : "dead";
-      renderChannels();
-    }
-
-    async function checkAllLinks() {
-      if (channels.length === 0) {
-        alert("ไม่มีช่องรายการในเพลย์ลิสต์ให้ตรวจสอบ");
-        return;
-      }
-
-      const progressBg = document.getElementById("healthProgressBg");
-      const progressFill = document.getElementById("healthProgressFill");
-      const statusText = document.getElementById("healthStatusText");
-
-      progressBg.style.display = "block";
-      statusText.style.display = "block";
-      progressFill.style.width = "0%";
-
-      const total = channels.length;
-      let completed = 0;
-      const concurrency = 4;
-      let queue = channels.map((ch, idx) => ({ ch, idx }));
-
-      async function worker() {
-        while (queue.length > 0) {
-          const item = queue.shift();
-          item.ch.status = "checking";
-          renderChannels();
-
-          const isAlive = await probeChannelHealth(item.ch);
-          item.ch.status = isAlive ? "alive" : "dead";
-
-          completed++;
-          const pct = Math.round((completed / total) * 100);
-          progressFill.style.width = pct + "%";
-          statusText.textContent = "กำลังตรวจสอบ... " + completed + "/" + total + " ช่อง (" + pct + "%)";
-          renderChannels();
-        }
-      }
-
-      const workers = [];
-      for (let i = 0; i < Math.min(concurrency, total); i++) {
-        workers.push(worker());
-      }
-      await Promise.all(workers);
-
-      statusText.textContent = "✅ ตรวจสอบสถานะครบทั้งหมด " + total + " ช่องแล้ว";
-      setTimeout(() => {
-        progressBg.style.display = "none";
-        statusText.style.display = "none";
-      }, 4000);
       renderChannels();
     }
 
