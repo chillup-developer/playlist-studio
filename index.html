@@ -585,7 +585,24 @@
       </div>
 
       <!-- Google Sign-In Container -->
-      <div id="googleSignInWrapper" style="display: flex; justify-content: center; flex-direction: column; gap: 8px;"></div>
+      <!-- Google Sign-In Container -->
+      <div id="g_id_onload"
+           data-client_id="701662894116-c4gslc2e99gmg9dhhivreedq32sbpdhh.apps.googleusercontent.com"
+           data-callback="handleGoogleSignIn"
+           data-auto_prompt="false"
+           data-cancel_on_tap_outside="true">
+      </div>
+      <div id="googleSignInWrapper" style="display: flex; justify-content: center; min-height: 44px; margin-top: 4px;">
+        <div class="g_id_signin" 
+             data-type="standard" 
+             data-size="large" 
+             data-theme="outline" 
+             data-text="sign_in_with" 
+             data-shape="rectangular" 
+             data-logo_alignment="left"
+             data-width="340">
+        </div>
+      </div>
     </div>
   </div>
 
@@ -925,15 +942,16 @@
     }
 
     
-        let googleClientId = localStorage.getItem("chillup_google_client_id") || "701662894116-c4gslc2e99gmg9dhhivreedq32sbpdhh.apps.googleusercontent.com";
+            let googleClientId = "701662894116-c4gslc2e99gmg9dhhivreedq32sbpdhh.apps.googleusercontent.com";
 
     function initGoogleAuth() {
-      const container = document.getElementById("googleSignInWrapper");
-      if (!container) return;
-
       const activeId = googleClientId || "701662894116-c4gslc2e99gmg9dhhivreedq32sbpdhh.apps.googleusercontent.com";
+      
+      // Update data-client_id on g_id_onload if present
+      const gOnload = document.getElementById("g_id_onload");
+      if (gOnload) gOnload.setAttribute("data-client_id", activeId);
 
-      if (window.google && window.google.accounts) {
+      if (window.google && window.google.accounts && window.google.accounts.id) {
         try {
           google.accounts.id.initialize({
             client_id: activeId,
@@ -941,23 +959,25 @@
             auto_select: false,
             cancel_on_tap_outside: true
           });
-          container.innerHTML = "";
-          google.accounts.id.renderButton(
-            container,
-            { 
-              theme: document.documentElement.getAttribute("data-theme") === "dark" ? "filled_black" : "outline", 
-              size: "large", 
-              width: 340, 
-              text: "sign_in_with", 
-              shape: "rectangular",
-              logo_alignment: "left"
-            }
-          );
+          const container = document.getElementById("googleSignInWrapper");
+          if (container) {
+            google.accounts.id.renderButton(
+              container,
+              { 
+                theme: document.documentElement.getAttribute("data-theme") === "dark" ? "filled_black" : "outline", 
+                size: "large", 
+                width: Math.min(340, window.innerWidth - 80), 
+                text: "sign_in_with", 
+                shape: "rectangular",
+                logo_alignment: "left"
+              }
+            );
+          }
         } catch (e) {
-          console.error("Google Init Error:", e);
+          console.warn("Google Render Warning:", e);
         }
       } else {
-        setTimeout(initGoogleAuth, 400);
+        setTimeout(initGoogleAuth, 300);
       }
     }
 
@@ -991,6 +1011,7 @@
 
     window.addEventListener("DOMContentLoaded", () => {
       checkAuthAndInit();
+      initGoogleAuth();
     });
 
     function toggleTheme() {
@@ -1020,6 +1041,7 @@
     function showLoginScreen() {
       document.getElementById("loginScreen").style.display = "flex";
       document.getElementById("appContainer").style.display = "none";
+      setTimeout(initGoogleAuth, 100);
     }
 
     function showAppScreen() {
