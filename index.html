@@ -1,0 +1,1758 @@
+<!DOCTYPE html>
+<html lang="th" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Chillup Playlist Studio</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <!-- Google Identity Services SDK -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <style>
+    :root {
+      --bg: #090d16;
+      --surface: #111827;
+      --surface-subtle: #1e293b;
+      --surface-hover: #1f293d;
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-faint: #64748b;
+      --primary: #38bdf8;
+      --primary-hover: #0284c7;
+      --primary-glow: rgba(56, 189, 248, 0.15);
+      --accent: #f59e0b;
+      --success: #10b981;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --table-header: #0f172a;
+      --badge-bg: rgba(255, 255, 255, 0.05);
+      --card-shadow: 0 10px 30px -10px rgba(0,0,0,0.5);
+      --modal-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    }
+
+    [data-theme="light"] {
+      --bg: #f8fafc;
+      --surface: #ffffff;
+      --surface-subtle: #f1f5f9;
+      --surface-hover: #f8fafc;
+      --border: rgba(0, 0, 0, 0.08);
+      --border-strong: rgba(0, 0, 0, 0.16);
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --text-faint: #94a3b8;
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --primary-glow: rgba(2, 132, 199, 0.12);
+      --table-header: #f8fafc;
+      --badge-bg: rgba(0, 0, 0, 0.04);
+      --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+      --modal-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.15);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+      transition: background-color 0.25s, color 0.25s;
+    }
+
+    /* Minimalist Navigation Header */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 32px;
+      height: 64px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--text);
+      font-weight: 700;
+      font-size: 16px;
+      letter-spacing: -0.02em;
+    }
+
+    .brand-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #0284c7, #38bdf8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 16px;
+      font-weight: 800;
+    }
+
+    .brand-badge {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--primary);
+      background: var(--primary-glow);
+      padding: 2px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .header-tools {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    /* Typography & Core Layout */
+    .container {
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 32px 24px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Buttons & Interactive Elements */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 8px 16px;
+      font-size: 13px;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+      text-decoration: none;
+      outline: none;
+      font-family: inherit;
+    }
+    .btn:active { transform: scale(0.98); }
+    .btn-primary {
+      background: var(--primary);
+      color: #ffffff;
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+      box-shadow: 0 4px 12px var(--primary-glow);
+    }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border-color: var(--border);
+    }
+    .btn-secondary:hover {
+      background: var(--surface-subtle);
+      border-color: var(--border-strong);
+    }
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-muted);
+    }
+    .btn-ghost:hover {
+      color: var(--text);
+      background: var(--surface-subtle);
+    }
+    .btn-success {
+      background: var(--success);
+      color: #ffffff;
+    }
+    .btn-warning {
+      background: var(--warning);
+      color: #ffffff;
+    }
+    .btn-danger {
+      background: transparent;
+      color: var(--danger);
+      border-color: rgba(239, 68, 68, 0.2);
+    }
+    .btn-danger:hover {
+      background: rgba(239, 68, 68, 0.1);
+      border-color: var(--danger);
+    }
+    .btn-sm {
+      padding: 5px 10px;
+      font-size: 12px;
+      border-radius: 6px;
+    }
+    .btn-icon {
+      width: 32px;
+      height: 32px;
+      padding: 0;
+      border-radius: 8px;
+    }
+
+    /* Minimalist Inputs */
+    input, select, textarea {
+      background: var(--surface-subtle);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 14px;
+      font-size: 13px;
+      outline: none;
+      transition: all 0.15s;
+      font-family: inherit;
+    }
+    input:focus, select:focus, textarea:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-glow);
+      background: var(--surface);
+    }
+    input::placeholder, textarea::placeholder {
+      color: var(--text-faint);
+    }
+
+    /* Cards */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      box-shadow: var(--card-shadow);
+    }
+
+    /* Minimalist Auth Gateway */
+    #loginScreen {
+      min-height: calc(100vh - 120px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .login-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px;
+      max-width: 420px;
+      width: 100%;
+      box-shadow: var(--modal-shadow);
+      text-align: center;
+    }
+    .login-header {
+      margin-bottom: 28px;
+    }
+    .login-header h2 {
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      margin-top: 12px;
+    }
+    .login-header p {
+      color: var(--text-muted);
+      font-size: 13px;
+      margin-top: 6px;
+    }
+
+    /* Profile Bar (Logged In) */
+    .profile-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 12px 20px;
+    }
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+      overflow: hidden;
+    }
+
+    /* Clean Navigation Tabs */
+    .nav-tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--surface-subtle);
+      padding: 4px;
+      border-radius: 10px;
+      width: fit-content;
+      border: 1px solid var(--border);
+    }
+    .tab-item {
+      padding: 7px 18px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      border: none;
+      background: transparent;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .tab-item.active {
+      background: var(--surface);
+      color: var(--text);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    /* Editor Layout */
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .form-label {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .action-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+    .action-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Group Filter Chips */
+    .chips-wrapper {
+      display: flex;
+      gap: 6px;
+      overflow-x: auto;
+      padding: 4px 0 12px 0;
+    }
+    .chip {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s;
+    }
+    .chip:hover {
+      border-color: var(--border-strong);
+      color: var(--text);
+    }
+    .chip.active {
+      background: var(--primary-glow);
+      color: var(--primary);
+      border-color: var(--primary);
+      font-weight: 600;
+    }
+
+    /* Minimalist Table */
+    .table-container {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--surface);
+    }
+    .table-scroll {
+      overflow-x: auto;
+      max-height: 540px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+    th {
+      background: var(--table-header);
+      color: var(--text-muted);
+      padding: 12px 16px;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    td {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface-hover); }
+
+    .channel-logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      object-fit: contain;
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+    }
+
+    .badge-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .status-ok { background: rgba(16, 185, 129, 0.12); color: var(--success); }
+    .status-err { background: rgba(239, 68, 68, 0.12); color: var(--danger); }
+    .status-loading { background: rgba(245, 158, 11, 0.12); color: var(--warning); }
+    .status-none { background: var(--badge-bg); color: var(--text-faint); }
+
+    /* Modal Architecture */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(6px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      padding: 20px;
+    }
+    .modal-box {
+      background: var(--surface);
+      border: 1px solid var(--border-strong);
+      border-radius: 16px;
+      width: 100%;
+      max-width: 520px;
+      padding: 28px;
+      box-shadow: var(--modal-shadow);
+      animation: modalEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    @keyframes modalEnter {
+      from { opacity: 0; transform: scale(0.96) translateY(8px); }
+      to { opacity: 1; transform: scale(1) translateY(0); }
+    }
+
+    .modal-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .modal-title h3 {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    /* Redeem Code Display Card */
+    .redeem-box {
+      background: var(--surface-subtle);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      text-align: center;
+      margin: 16px 0;
+    }
+    .code-display {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      color: var(--primary);
+      margin: 12px 0;
+      padding: 10px;
+      background: var(--surface);
+      border: 1px dashed var(--primary);
+      border-radius: 8px;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 4px;
+      background: var(--surface-subtle);
+      border-radius: 2px;
+      overflow: hidden;
+      margin-bottom: 12px;
+      display: none;
+    }
+    .progress-bar-active {
+      height: 100%;
+      width: 0%;
+      background: var(--primary);
+      transition: width 0.2s;
+    }
+
+    .empty-placeholder {
+      text-align: center;
+      padding: 48px 24px;
+      color: var(--text-muted);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Minimal Header -->
+  <header>
+    <a href="#" class="brand">
+      <div class="brand-icon">📺</div>
+      <span>Playlist Studio</span>
+      <span class="brand-badge">Universal</span>
+    </a>
+    <div class="header-tools">
+      <button class="btn btn-ghost btn-sm" onclick="toggleTheme()" id="themeBtn" title="สลับธีม สว่าง/มืด">🌓 ธีม</button>
+      <button class="btn btn-ghost btn-sm" onclick="openServerConfigModal()" title="ตั้งค่าเซิร์ฟเวอร์">⚙️ Hub</button>
+    </div>
+  </header>
+
+  <!-- ========================================== -->
+  <!-- 🔒 VIEW 0: MINIMALIST LOGIN GATEWAY        -->
+  <!-- ========================================== -->
+  <div id="loginScreen">
+    <div class="login-card">
+      <div class="login-header">
+        <div style="font-size: 36px; margin-bottom: 8px;">📺</div>
+        <h2>เข้าสู่ระบบ Playlist Studio</h2>
+        <p>สร้าง จัดการช่อง และสร้างรหัส Redeem สำหรับ Chillup IPTV</p>
+      </div>
+
+      <form onsubmit="handleEmailLogin(event)" style="display: flex; flex-direction: column; gap: 14px; text-align: left;">
+        <div class="form-group">
+          <label class="form-label">ชื่อผู้ใช้งาน (Display Name)</label>
+          <input type="text" id="loginInputName" placeholder="เช่น Admin, Creator" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">อีเมลหรือบัญชี (Email / Username)</label>
+          <input type="text" id="loginInputEmail" placeholder="name@example.com" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">รหัสผ่าน (Password)</label>
+          <input type="password" id="loginInputPass" placeholder="••••••••">
+        </div>
+        <button type="submit" class="btn btn-primary" style="padding: 12px; margin-top: 4px; font-size: 14px;">
+          เข้าสู่ระบบ (Sign In)
+        </button>
+      </form>
+
+      <div style="display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--text-faint); font-size: 12px;">
+        <div style="flex: 1; height: 1px; background: var(--border);"></div>
+        <span>หรือ</span>
+        <div style="flex: 1; height: 1px; background: var(--border);"></div>
+      </div>
+
+      <!-- Google Sign-In Container -->
+      <div id="googleSignInWrapper" style="display: flex; justify-content: center; flex-direction: column; gap: 8px;"></div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- 🌟 VIEW 1 & 2: MAIN STUDIO (AFTER LOGIN)   -->
+  <!-- ========================================== -->
+  <div class="container" id="appContainer" style="display: none;">
+    
+    <!-- User Profile Strip -->
+    <div class="profile-bar">
+      <div class="user-info">
+        <div class="avatar" id="userAvatar">U</div>
+        <div>
+          <div style="font-weight: 600; font-size: 14px;" id="userName">User</div>
+          <div style="font-size: 12px; color: var(--text-muted);" id="userEmail">user@domain.com</div>
+        </div>
+      </div>
+      <div style="display: flex; gap: 8px;">
+        <button class="btn btn-secondary btn-sm" onclick="openProfileModal()">แก้ไขโปรไฟล์</button>
+        <button class="btn btn-danger btn-sm" onclick="logout()">ออกจากระบบ</button>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="nav-tabs">
+      <button class="tab-item active" id="tabEditorBtn" onclick="switchTab('editor')">ตัวแก้ไขเพลย์ลิสต์</button>
+      <button class="tab-item" id="tabMyListsBtn" onclick="switchTab('mylists')">เพลย์ลิสต์ของฉัน</button>
+    </div>
+
+    <!-- TAB 1: PLAYLIST EDITOR -->
+    <div id="viewEditor">
+      <div class="card">
+        
+        <!-- Metadata Form -->
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">ชื่อเพลย์ลิสต์ (Playlist Name)</label>
+            <input type="text" id="plName" placeholder="เช่น Sports & Movies VIP" value="My Playlist">
+          </div>
+          <div class="form-group">
+            <label class="form-label">ผู้สร้าง (Author)</label>
+            <input type="text" id="plAuthor" placeholder="เช่น Chillup Studio" value="Creator">
+          </div>
+          <div class="form-group">
+            <label class="form-label">รหัส Redeem ที่ต้องการ (Custom Code)</label>
+            <input type="text" id="plRedeemCode" placeholder="เว้นว่างเพื่อสุ่ม (เช่น PL-XXXX)" style="text-transform: uppercase;">
+          </div>
+        </div>
+
+        <!-- Progress Indicator -->
+        <div class="progress-bar-container" id="healthProgressBg">
+          <div class="progress-bar-active" id="healthProgressFill"></div>
+        </div>
+        <div id="healthStatusText" style="font-size: 12px; color: var(--text-muted); display: none; margin-bottom: 12px;">กำลังตรวจสอบสถานะ...</div>
+
+        <!-- Action Toolbar -->
+        <div class="action-bar" style="margin-bottom: 20px;">
+          <div class="action-group">
+            <button class="btn btn-primary btn-sm" onclick="openAddChannelModal()">+ เพิ่มช่อง</button>
+            <button class="btn btn-secondary btn-sm" onclick="openImportModal()">📥 นำเข้า (M3U / URL)</button>
+            <button class="btn btn-secondary btn-sm" onclick="checkAllLinks()">⚡ ตรวจสอบลิงก์</button>
+            <button class="btn btn-danger btn-sm" onclick="removeDeadChannels()">🗑️ ลบช่องเสีย</button>
+          </div>
+          <div class="action-group">
+            <button class="btn btn-ghost btn-sm" onclick="exportFile('m3u')">⬇ M3U</button>
+            <button class="btn btn-ghost btn-sm" onclick="exportFile('w3u')">⬇ W3U</button>
+            <button class="btn btn-success btn-sm" onclick="saveAndGenerateRedeemCode()">💾 บันทึก & รับรหัส</button>
+          </div>
+        </div>
+
+        <!-- Search & Stats -->
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+          <input type="text" id="searchChannel" placeholder="🔍 ค้นหาช่อง หรือ URL..." style="max-width: 300px; width: 100%;" oninput="filterChannels()">
+          <div style="font-size: 12px; color: var(--text-muted);">
+            ทั้งหมด: <b id="totalCountText" style="color: var(--text);">0</b> | 
+            กลุ่ม: <b id="groupCountText" style="color: var(--text);">0</b> | 
+            🟢 ใช้งานได้: <b id="aliveCountText" style="color: var(--success);">0</b> | 
+            🔴 เสีย: <b id="deadCountText" style="color: var(--danger);">0</b>
+          </div>
+        </div>
+
+        <!-- Group Filter Chips -->
+        <div class="chips-wrapper" id="groupFilterBar">
+          <div class="chip active" onclick="selectGroup('ALL')">ทั้งหมด (All)</div>
+        </div>
+
+        <!-- Channels Table -->
+        <div class="table-container">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width: 48px; text-align: center;">#</th>
+                  <th style="width: 44px; text-align: center;">โลโก้</th>
+                  <th>ชื่อช่อง / URL</th>
+                  <th>กลุ่ม</th>
+                  <th style="width: 120px;">สถานะ</th>
+                  <th style="width: 140px; text-align: center;">การจัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="channelTableBody">
+                <tr>
+                  <td colspan="6" class="empty-placeholder">
+                    ยังไม่มีช่องในเพลย์ลิสต์นี้ — กด <b>"+ เพิ่มช่อง"</b> หรือ <b>"📥 นำเข้า"</b> เพื่อเริ่มต้น
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- TAB 2: MY PLAYLISTS & CODES -->
+    <div id="viewMyLists" style="display: none;">
+      <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+          <div>
+            <h2 style="font-size: 16px; font-weight: 700;">เพลย์ลิสต์ของฉัน</h2>
+            <p style="font-size: 13px; color: var(--text-muted); margin-top: 2px;">สตรีมได้รับการเข้ารหัสและโหลดเข้า RAM เท่านั้นเมื่อเล่นในแอป Chillup IPTV</p>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="loadMyPlaylists()">🔄 รีเฟรช</button>
+        </div>
+
+        <div class="table-container">
+          <div class="table-scroll">
+            <table>
+              <thead>
+                <tr>
+                  <th>ชื่อเพลย์ลิสต์</th>
+                  <th>รหัส Redeem</th>
+                  <th>จำนวนช่อง</th>
+                  <th>วันหมดอายุ</th>
+                  <th>อัปเดตล่าสุด</th>
+                  <th style="width: 140px; text-align: center;">จัดการ</th>
+                </tr>
+              </thead>
+              <tbody id="myPlaylistsTableBody">
+                <tr>
+                  <td colspan="6" class="empty-placeholder">ยังไม่มีเพลย์ลิสต์ที่คุณบันทึกไว้</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  
+  <!-- MODAL: GOOGLE OAUTH SETUP -->
+  <div class="modal-backdrop" id="oauthHelpModal">
+    <div class="modal-box" style="max-width: 520px;">
+      <div class="modal-title">
+        <h3>⚙️ ตั้งค่า Google OAuth Client ID</h3>
+        <button class="btn btn-ghost btn-sm" onclick="closeOAuthHelpModal()">✕</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 14px; font-size: 13px; line-height: 1.6;">
+        <div style="background: rgba(56, 189, 248, 0.08); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px; padding: 12px; color: var(--text);">
+          <b>สาเหตุของ Error 401: invalid_client:</b><br>
+          เนื่องจากยังไม่มีการระบุ <b>Google Client ID</b> จริงของคุณ คุณสามารถกรอก Client ID ได้ด้านล่าง หรือ<b>เข้าสู่ระบบด้วยชื่อและอีเมลด้านบน</b>ได้ทันทีโดยไม่ต้องตั้งค่าใดๆ
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Google OAuth Client ID</label>
+          <input type="text" id="customGoogleClientIdInput" placeholder="xxxxxxxxxxxx-xxxxxxxx.apps.googleusercontent.com">
+          <div style="font-size: 11px; color: var(--text-faint); margin-top: 4px;">คัดลอก Client ID จาก Google Cloud Console มาวางที่นี่</div>
+        </div>
+
+        <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 12px;">
+          <div style="font-weight: 600; color: var(--primary); margin-bottom: 6px;">📋 วิธีสร้าง Google Client ID (ทำครั้งเดียว):</div>
+          <ol style="margin-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-muted);">
+            <li>ไปที่ <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color: var(--primary);">Google Cloud Console > Credentials</a></li>
+            <li>กด <b>Create Credentials</b> &gt; <b>OAuth client ID</b></li>
+            <li>เลือก Application type: <b>Web application</b></li>
+            <li>ในช่อง <b>Authorized JavaScript origins</b> ให้ใส่ URL เว็บไซต์ของคุณ (เช่น URL GitHub Pages)</li>
+            <li>กด <b>Create</b> แล้วนำ Client ID มาวางในช่องด้านบน</li>
+          </ol>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;">
+          <button class="btn btn-secondary" onclick="closeOAuthHelpModal()">ปิด</button>
+          <button class="btn btn-primary" onclick="saveGoogleClientId()">บันทึก Client ID</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: ADD / EDIT CHANNEL -->
+  <div class="modal-backdrop" id="channelModal">
+    <div class="modal-box">
+      <div class="modal-title">
+        <h3 id="modalChannelTitle">เพิ่มช่องใหม่</h3>
+        <button class="btn btn-ghost btn-sm" onclick="closeChannelModal()">✕</button>
+      </div>
+      <input type="hidden" id="editChannelIndex" value="-1">
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="form-group">
+          <label class="form-label">ชื่อช่อง (Channel Name) *</label>
+          <input type="text" id="inputChName" placeholder="เช่น ช่อง 3 HD, HBO" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">URL สตรีม (Stream URL) *</label>
+          <input type="text" id="inputChUrl" placeholder="https://domain.com/live.m3u8" required>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">กลุ่ม (Group Title)</label>
+            <input type="text" id="inputChGroup" placeholder="เช่น ทั่วไป, ดิจิตอลทีวี">
+          </div>
+          <div class="form-group">
+            <label class="form-label">โลโก้ (Logo URL)</label>
+            <input type="text" id="inputChLogo" placeholder="https://domain.com/logo.png">
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label class="form-label">HTTP Referer (ถ้ามี)</label>
+            <input type="text" id="inputChReferer" placeholder="https://domain.com/">
+          </div>
+          <div class="form-group">
+            <label class="form-label">User-Agent (ถ้ามี)</label>
+            <input type="text" id="inputChUa" placeholder="Mozilla/5.0...">
+          </div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;">
+          <button class="btn btn-secondary" onclick="closeChannelModal()">ยกเลิก</button>
+          <button class="btn btn-primary" onclick="saveChannelFromModal()">บันทึก</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: IMPORT PLAYLIST -->
+  <div class="modal-backdrop" id="importModal">
+    <div class="modal-box" style="max-width: 540px;">
+      <div class="modal-title">
+        <h3>นำเข้าช่องรายการ (Import)</h3>
+        <button class="btn btn-ghost btn-sm" onclick="closeImportModal()">✕</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <div class="form-group">
+          <label class="form-label">1. อัปโหลดไฟล์ (.m3u, .m3u8, .w3u, .json, .txt)</label>
+          <input type="file" id="importFileInput" accept=".m3u,.m3u8,.w3u,.txt,.json" onchange="handleFileUpload(event)">
+        </div>
+        <div class="form-group">
+          <label class="form-label">2. หรือดาวน์โหลดผ่าน URL ลิงก์ตรง</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="importUrlInput" placeholder="https://example.com/playlist.m3u" style="flex: 1;">
+            <button class="btn btn-primary btn-sm" onclick="fetchPlaylistFromUrl()">ดึงข้อมูล</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">3. หรือวางเนื้อหา M3U / W3U (Raw Text)</label>
+          <textarea id="importTextInput" rows="5" placeholder="#EXTM3U\n#EXTINF:-1 group-title=&quot;News&quot;,Channel 3\nhttps://stream.example/live.m3u8" style="font-family: 'JetBrains Mono', monospace; font-size: 12px;"></textarea>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px;">
+          <button class="btn btn-secondary" onclick="closeImportModal()">ปิด</button>
+          <button class="btn btn-primary" onclick="processRawTextImport()">นำเข้าข้อความ</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: REDEEM CODE SUCCESS -->
+  <div class="modal-backdrop" id="redeemResultModal">
+    <div class="modal-box" style="max-width: 440px; text-align: center;">
+      <div style="font-size: 36px; margin-bottom: 8px;">🎉</div>
+      <h3 style="font-size: 18px; font-weight: 700;">บันทึกเพลย์ลิสต์สำเร็จ</h3>
+      <p style="font-size: 13px; color: var(--text-muted); margin-top: 4px;">รหัส Redeem สำหรับใส่ในแอป Chillup IPTV</p>
+
+      <div class="redeem-box">
+        <div class="code-display" id="displayRedeemCode">PL-XXXX</div>
+        <button class="btn btn-primary btn-sm" onclick="copyRedeemCode()" style="margin: 0 auto;">📋 คัดลอกรหัส (Copy)</button>
+      </div>
+
+      <div style="font-size: 12px; color: var(--text-muted); text-align: left; background: var(--surface-subtle); padding: 12px; border-radius: 8px; line-height: 1.5; margin-bottom: 16px;">
+        🔒 <b>RAM-Only Delivery:</b> ช่องและสตรีมทั้งหมดจะถูกโหลดเข้าสู่หน่วยความจำชั่วคราวเท่านั้น ไม่มีการบันทึกไฟล์สตรีมลงตัวเครื่อง ป้องกันการดึง URL 100%
+      </div>
+
+      <button class="btn btn-secondary" style="width: 100%;" onclick="closeRedeemModal()">ตกลง</button>
+    </div>
+  </div>
+
+  <!-- MODAL: SERVER CONFIG -->
+  <div class="modal-backdrop" id="serverModal">
+    <div class="modal-box" style="max-width: 440px;">
+      <div class="modal-title">
+        <h3>ตั้งค่าเซิร์ฟเวอร์ Hub</h3>
+        <button class="btn btn-ghost btn-sm" onclick="closeServerConfigModal()">✕</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="form-group">
+          <label class="form-label">Cloudflare Worker Hub URL</label>
+          <input type="text" id="serverHubUrlInput" placeholder="https://playlist-hub.yourdomain.workers.dev">
+          <div style="font-size: 11px; color: var(--text-faint); margin-top: 4px;">ใส่ URL ของ Worker หากเปิดใช้งานหน้าเว็บนี้จาก GitHub Pages หรือ Host อื่น</div>
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;">
+          <button class="btn btn-secondary" onclick="closeServerConfigModal()">ยกเลิก</button>
+          <button class="btn btn-primary" onclick="saveServerConfig()">บันทึก</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: PROFILE -->
+  <div class="modal-backdrop" id="profileModal">
+    <div class="modal-box" style="max-width: 380px;">
+      <div class="modal-title">
+        <h3>แก้ไขโปรไฟล์</h3>
+        <button class="btn btn-ghost btn-sm" onclick="closeProfileModal()">✕</button>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="form-group">
+          <label class="form-label">ชื่อผู้ใช้งาน (Display Name)</label>
+          <input type="text" id="profileNameInput">
+        </div>
+        <div class="form-group">
+          <label class="form-label">อีเมลหรือไอดี (Email / User ID)</label>
+          <input type="text" id="profileEmailInput">
+        </div>
+        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;">
+          <button class="btn btn-secondary" onclick="closeProfileModal()">ยกเลิก</button>
+          <button class="btn btn-primary" onclick="saveProfileChanges()">บันทึก</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LOGIC SCRIPT -->
+  <script>
+    let HUB_SERVER = localStorage.getItem("chillup_hub_server") || window.location.origin;
+    if (HUB_SERVER.startsWith("file://") || !HUB_SERVER || HUB_SERVER.includes("localhost")) {
+      HUB_SERVER = "https://iptv-app-proxy.natee-bumrungsiri.workers.dev";
+    }
+
+    
+    let googleClientId = localStorage.getItem("chillup_google_client_id") || "";
+
+    function initGoogleAuth() {
+      const container = document.getElementById("googleSignInWrapper");
+      if (!container) return;
+
+      if (!googleClientId || googleClientId.includes("YOUR_GOOGLE_CLIENT_ID")) {
+        container.innerHTML = `
+          <div style="background: var(--surface-subtle); border: 1px dashed var(--border-strong); border-radius: 8px; padding: 12px; font-size: 12px; color: var(--text-muted); text-align: center;">
+            <div style="margin-bottom: 6px;">⚙️ ยังไม่ได้เชื่อม Google Client ID</div>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openOAuthHelpModal()">🔧 ตั้งค่า Google Client ID</button>
+          </div>
+        `;
+        return;
+      }
+
+      if (window.google && window.google.accounts) {
+        try {
+          google.accounts.id.initialize({
+            client_id: googleClientId,
+            callback: handleGoogleSignIn
+          });
+          container.innerHTML = "";
+          google.accounts.id.renderButton(
+            container,
+            { theme: document.documentElement.getAttribute("data-theme") === "dark" ? "filled_black" : "outline", size: "large", width: 340, text: "sign_in_with", shape: "rectangular" }
+          );
+        } catch (e) {
+          console.error("Google Init Error:", e);
+        }
+      } else {
+        setTimeout(initGoogleAuth, 500);
+      }
+    }
+
+    function openOAuthHelpModal() {
+      document.getElementById("customGoogleClientIdInput").value = localStorage.getItem("chillup_google_client_id") || "";
+      document.getElementById("oauthHelpModal").style.display = "flex";
+    }
+    function closeOAuthHelpModal() {
+      document.getElementById("oauthHelpModal").style.display = "none";
+    }
+    function saveGoogleClientId() {
+      const id = document.getElementById("customGoogleClientIdInput").value.trim();
+      if (id) {
+        localStorage.setItem("chillup_google_client_id", id);
+        googleClientId = id;
+        closeOAuthHelpModal();
+        initGoogleAuth();
+        alert("✅ บันทึก Google Client ID สำเร็จ!");
+      } else {
+        localStorage.removeItem("chillup_google_client_id");
+        googleClientId = "";
+        closeOAuthHelpModal();
+        initGoogleAuth();
+      }
+    }
+
+    let currentUser = null;
+    let channels = [];
+    let activeGroupFilter = "ALL";
+    let editingIndex = -1;
+
+    window.addEventListener("DOMContentLoaded", () => {
+      checkAuthAndInit();
+    });
+
+    function toggleTheme() {
+      const current = document.documentElement.getAttribute("data-theme") || "dark";
+      const next = current === "dark" ? "light" : "dark";
+      document.documentElement.setAttribute("data-theme", next);
+      localStorage.setItem("chillup_theme", next);
+    }
+    const savedTheme = localStorage.getItem("chillup_theme");
+    if (savedTheme) document.documentElement.setAttribute("data-theme", savedTheme);
+
+    function checkAuthAndInit() {
+      const saved = localStorage.getItem("chillup_user");
+      if (saved) {
+        try {
+          currentUser = JSON.parse(saved);
+        } catch (_) {}
+      }
+
+      if (currentUser && currentUser.id) {
+        showAppScreen();
+      } else {
+        showLoginScreen();
+      }
+    }
+
+    function showLoginScreen() {
+      document.getElementById("loginScreen").style.display = "flex";
+      document.getElementById("appContainer").style.display = "none";
+    }
+
+    function showAppScreen() {
+      document.getElementById("loginScreen").style.display = "none";
+      document.getElementById("appContainer").style.display = "flex";
+      updateUserUI();
+      renderChannels();
+      loadMyPlaylists();
+      
+      const authorInput = document.getElementById("plAuthor");
+      if (authorInput && (!authorInput.value || authorInput.value === "Creator")) {
+        authorInput.value = currentUser.name || "Creator";
+      }
+    }
+
+    function handleEmailLogin(e) {
+      e.preventDefault();
+      const name = document.getElementById("loginInputName").value.trim();
+      const email = document.getElementById("loginInputEmail").value.trim();
+      if (!name || !email) {
+        alert("กรุณากรอกชื่อและอีเมล/บัญชีผู้ใช้");
+        return;
+      }
+
+      const uid = "usr_" + btoa(unescape(encodeURIComponent(email))).replace(/[^a-zA-Z0-9]/g, "").substring(0, 14);
+      currentUser = {
+        id: uid,
+        name: name,
+        email: email,
+        picture: ""
+      };
+      localStorage.setItem("chillup_user", JSON.stringify(currentUser));
+      showAppScreen();
+    }
+
+    function handleGoogleSignIn(response) {
+      try {
+        const payload = JSON.parse(atob(response.credential.split(".")[1]));
+        currentUser = {
+          id: "g_" + payload.sub,
+          name: payload.name || "Google User",
+          email: payload.email,
+          picture: payload.picture || ""
+        };
+        localStorage.setItem("chillup_user", JSON.stringify(currentUser));
+        showAppScreen();
+      } catch (err) {
+        alert("การเข้าสู่ระบบด้วย Google ไม่สำเร็จ: " + err.message);
+      }
+    }
+
+    function logout() {
+      if (confirm("คุณต้องการออกจากระบบใช่หรือไม่?")) {
+        localStorage.removeItem("chillup_user");
+        currentUser = null;
+        channels = [];
+        showLoginScreen();
+      }
+    }
+
+    function updateUserUI() {
+      if (!currentUser) return;
+      document.getElementById("userName").textContent = currentUser.name;
+      document.getElementById("userEmail").textContent = currentUser.email;
+      const avatar = document.getElementById("userAvatar");
+      if (currentUser.picture) {
+        avatar.innerHTML = '<img src="' + escapeHtml(currentUser.picture) + '" style="width: 100%; height: 100%; border-radius: 50%;">';
+      } else {
+        avatar.textContent = (currentUser.name || "U").charAt(0).toUpperCase();
+      }
+    }
+
+    function openProfileModal() {
+      if (!currentUser) return;
+      document.getElementById("profileNameInput").value = currentUser.name || "";
+      document.getElementById("profileEmailInput").value = currentUser.email || "";
+      document.getElementById("profileModal").style.display = "flex";
+    }
+    function closeProfileModal() {
+      document.getElementById("profileModal").style.display = "none";
+    }
+    function saveProfileChanges() {
+      const n = document.getElementById("profileNameInput").value.trim();
+      const e = document.getElementById("profileEmailInput").value.trim();
+      if (!n || !e) return;
+      currentUser.name = n;
+      currentUser.email = e;
+      localStorage.setItem("chillup_user", JSON.stringify(currentUser));
+      updateUserUI();
+      closeProfileModal();
+      loadMyPlaylists();
+    }
+
+    function openServerConfigModal() {
+      document.getElementById("serverHubUrlInput").value = HUB_SERVER;
+      document.getElementById("serverModal").style.display = "flex";
+    }
+    function closeServerConfigModal() {
+      document.getElementById("serverModal").style.display = "none";
+    }
+    function saveServerConfig() {
+      const url = document.getElementById("serverHubUrlInput").value.trim();
+      if (url) {
+        HUB_SERVER = url.replace(/\\/$/, "");
+        localStorage.setItem("chillup_hub_server", HUB_SERVER);
+        closeServerConfigModal();
+        loadMyPlaylists();
+        alert("✅ บันทึก URL เซิร์ฟเวอร์ Hub สำเร็จ: " + HUB_SERVER);
+      }
+    }
+
+    function switchTab(tab) {
+      document.getElementById("tabEditorBtn").classList.toggle("active", tab === "editor");
+      document.getElementById("tabMyListsBtn").classList.toggle("active", tab === "mylists");
+      document.getElementById("viewEditor").style.display = tab === "editor" ? "block" : "none";
+      document.getElementById("viewMyLists").style.display = tab === "mylists" ? "block" : "none";
+      if (tab === "mylists") loadMyPlaylists();
+    }
+
+    function renderChannels() {
+      const tbody = document.getElementById("channelTableBody");
+      const filter = document.getElementById("searchChannel").value.toLowerCase().trim();
+      
+      const filtered = channels.filter((ch, idx) => {
+        ch._origIdx = idx;
+        const matchGroup = activeGroupFilter === "ALL" || (ch.group || "General") === activeGroupFilter;
+        const matchSearch = !filter || 
+          (ch.name && ch.name.toLowerCase().includes(filter)) || 
+          (ch.url && ch.url.toLowerCase().includes(filter)) ||
+          (ch.group && ch.group.toLowerCase().includes(filter));
+        return matchGroup && matchSearch;
+      });
+
+      updateStats();
+      renderGroupPills();
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-placeholder">' + (channels.length === 0 ? 'ยังไม่มีช่องในเพลย์ลิสต์นี้ — กด <b>"+ เพิ่มช่อง"</b> หรือ <b>"📥 นำเข้า"</b> เพื่อเริ่มต้น' : 'ไม่พบช่องรายการที่ตรงกับการค้นหา') + '</td></tr>';
+        return;
+      }
+
+      let html = "";
+      filtered.forEach((ch) => {
+        const origIdx = ch._origIdx;
+        let statusBadge = '<span class="badge-status status-none">⚪ ยังไม่ตรวจ</span>';
+        if (ch.status === "alive") {
+          statusBadge = '<span class="badge-status status-ok">🟢 ใช้งานได้</span>';
+        } else if (ch.status === "dead") {
+          statusBadge = '<span class="badge-status status-err">🔴 เสีย</span>';
+        } else if (ch.status === "checking") {
+          statusBadge = '<span class="badge-status status-loading">🟡 กำลังตรวจ...</span>';
+        }
+
+        const logoImg = ch.logo ? 
+          '<img src="' + escapeHtml(ch.logo) + '" class="channel-logo" onerror="this.src=\'data:image/svg+xml;utf8,<svg xmlns=\\\'http://www.w3.org/2000/svg\\\' width=\\\'28\\\' height=\\\'28\\\'><rect width=\\\'28\\\' height=\\\'28\\\' fill=\\\'%23334155\\\'/><text x=\\\'50%\\\' y=\\\'50%\\\' fill=\\\'%2394a3b8\\\' font-size=\\\'10\\\' text-anchor=\\\'middle\\\' dy=\\\'.3em\\\'>TV</text></svg>\'">' : 
+          '<div class="channel-logo" style="display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-faint);">TV</div>';
+
+        html += '<tr>' +
+          '<td style="text-align: center; color: var(--text-faint); font-weight: 500;">' + (origIdx + 1) + '</td>' +
+          '<td style="text-align: center;">' + logoImg + '</td>' +
+          '<td>' +
+            '<div style="font-weight: 600; color: var(--text);">' + escapeHtml(ch.name || 'Channel') + '</div>' +
+            '<div style="font-size: 11px; color: var(--text-muted); word-break: break-all; max-width: 340px; font-family: monospace;">' + escapeHtml(ch.url) + '</div>' +
+          '</td>' +
+          '<td>' +
+            '<span style="background: var(--surface-subtle); padding: 3px 8px; border-radius: 6px; font-size: 11px; border: 1px solid var(--border); color: var(--text-muted);">' + escapeHtml(ch.group || 'General') + '</span>' +
+          '</td>' +
+          '<td>' + statusBadge + '</td>' +
+          '<td style="text-align: center;">' +
+            '<div style="display: flex; gap: 4px; justify-content: center;">' +
+              '<button class="btn btn-secondary btn-icon btn-sm" onclick="moveChannel(' + origIdx + ', -1)" title="เลื่อนขึ้น">⬆</button>' +
+              '<button class="btn btn-secondary btn-icon btn-sm" onclick="moveChannel(' + origIdx + ', 1)" title="เลื่อนลง">⬇</button>' +
+              '<button class="btn btn-secondary btn-icon btn-sm" onclick="testSingleLink(' + origIdx + ')" title="ทดสอบ">⚡</button>' +
+              '<button class="btn btn-secondary btn-icon btn-sm" onclick="editChannel(' + origIdx + ')" title="แก้ไข">✏</button>' +
+              '<button class="btn btn-danger btn-icon btn-sm" onclick="deleteChannel(' + origIdx + ')" title="ลบ">✕</button>' +
+            '</div>' +
+          '</td>' +
+        '</tr>';
+      });
+
+      tbody.innerHTML = html;
+    }
+
+    function renderGroupPills() {
+      const groups = ["ALL"];
+      channels.forEach(c => {
+        const g = c.group || "General";
+        if (!groups.includes(g)) groups.push(g);
+      });
+
+      const bar = document.getElementById("groupFilterBar");
+      let html = "";
+      groups.forEach(g => {
+        const active = g === activeGroupFilter ? "active" : "";
+        const label = g === "ALL" ? "ทั้งหมด (All)" : g;
+        html += '<div class="chip ' + active + '" onclick="selectGroup(\'' + escapeHtml(g) + '\')">' + escapeHtml(label) + '</div>';
+      });
+      bar.innerHTML = html;
+    }
+
+    function selectGroup(g) {
+      activeGroupFilter = g;
+      renderChannels();
+    }
+
+    function filterChannels() {
+      renderChannels();
+    }
+
+    function updateStats() {
+      const total = channels.length;
+      const groups = new Set(channels.map(c => c.group || "General")).size;
+      const alive = channels.filter(c => c.status === "alive").length;
+      const dead = channels.filter(c => c.status === "dead").length;
+
+      document.getElementById("totalCountText").textContent = total;
+      document.getElementById("groupCountText").textContent = groups;
+      document.getElementById("aliveCountText").textContent = alive;
+      document.getElementById("deadCountText").textContent = dead;
+    }
+
+    function moveChannel(idx, direction) {
+      const target = idx + direction;
+      if (target < 0 || target >= channels.length) return;
+      const temp = channels[idx];
+      channels[idx] = channels[target];
+      channels[target] = temp;
+      renderChannels();
+    }
+
+    function deleteChannel(idx) {
+      if (confirm("ต้องการลบช่อง \"" + (channels[idx].name || "ช่องนี้") + "\" หรือไม่?")) {
+        channels.splice(idx, 1);
+        renderChannels();
+      }
+    }
+
+    function openAddChannelModal() {
+      editingIndex = -1;
+      document.getElementById("modalChannelTitle").textContent = "เพิ่มช่องใหม่";
+      document.getElementById("inputChName").value = "";
+      document.getElementById("inputChUrl").value = "";
+      document.getElementById("inputChGroup").value = activeGroupFilter !== "ALL" ? activeGroupFilter : "General";
+      document.getElementById("inputChLogo").value = "";
+      document.getElementById("inputChReferer").value = "";
+      document.getElementById("inputChUa").value = "";
+      document.getElementById("channelModal").style.display = "flex";
+    }
+
+    function editChannel(idx) {
+      editingIndex = idx;
+      const ch = channels[idx];
+      document.getElementById("modalChannelTitle").textContent = "แก้ไขช่อง";
+      document.getElementById("inputChName").value = ch.name || "";
+      document.getElementById("inputChUrl").value = ch.url || "";
+      document.getElementById("inputChGroup").value = ch.group || "General";
+      document.getElementById("inputChLogo").value = ch.logo || "";
+      document.getElementById("inputChReferer").value = ch.referer || "";
+      document.getElementById("inputChUa").value = ch.userAgent || "";
+      document.getElementById("channelModal").style.display = "flex";
+    }
+
+    function closeChannelModal() {
+      document.getElementById("channelModal").style.display = "none";
+    }
+
+    function saveChannelFromModal() {
+      const name = document.getElementById("inputChName").value.trim();
+      const url = document.getElementById("inputChUrl").value.trim();
+      const group = document.getElementById("inputChGroup").value.trim() || "General";
+      const logo = document.getElementById("inputChLogo").value.trim();
+      const referer = document.getElementById("inputChReferer").value.trim();
+      const ua = document.getElementById("inputChUa").value.trim();
+
+      if (!name || !url) {
+        alert("กรุณาระบุชื่อช่องและ URL สตรีม");
+        return;
+      }
+
+      const item = {
+        name: name,
+        url: url,
+        group: group,
+        logo: logo,
+        referer: referer,
+        userAgent: ua,
+        status: "unknown"
+      };
+
+      if (editingIndex >= 0 && editingIndex < channels.length) {
+        channels[editingIndex] = item;
+      } else {
+        channels.push(item);
+      }
+
+      closeChannelModal();
+      renderChannels();
+    }
+
+    function openImportModal() {
+      document.getElementById("importModal").style.display = "flex";
+    }
+    function closeImportModal() {
+      document.getElementById("importModal").style.display = "none";
+    }
+
+    function handleFileUpload(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        parseAndAppendPlaylist(evt.target.result);
+        closeImportModal();
+      };
+      reader.readAsText(file);
+    }
+
+    async function fetchPlaylistFromUrl() {
+      const url = document.getElementById("importUrlInput").value.trim();
+      if (!url) {
+        alert("กรุณาระบุ URL ของเพลย์ลิสต์");
+        return;
+      }
+
+      try {
+        let content = "";
+        try {
+          const r = await fetch(url);
+          if (r.ok) content = await r.text();
+        } catch (_) {}
+
+        if (!content) {
+          const r2 = await fetch(HUB_SERVER + "/api/proxy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ targetUrl: url })
+          });
+          const res = await r2.json();
+          if (res.success) content = res.data;
+        }
+
+        if (content) {
+          parseAndAppendPlaylist(content);
+          closeImportModal();
+        } else {
+          alert("ไม่สามารถดึงข้อมูลเพลย์ลิสต์จาก URL นี้ได้");
+        }
+      } catch (err) {
+        alert("เกิดข้อผิดพลาด: " + err.message);
+      }
+    }
+
+    function processRawTextImport() {
+      const text = document.getElementById("importTextInput").value.trim();
+      if (!text) {
+        alert("กรุณาวางเนื้อหาเพลย์ลิสต์");
+        return;
+      }
+      parseAndAppendPlaylist(text);
+      closeImportModal();
+    }
+
+    function parseAndAppendPlaylist(content) {
+      if (content.trim().startsWith("{") || content.trim().startsWith("[")) {
+        try {
+          const obj = JSON.parse(content);
+          if (obj.groups && Array.isArray(obj.groups)) {
+            obj.groups.forEach(g => {
+              const gName = g.name || "General";
+              if (g.stations && Array.isArray(g.stations)) {
+                g.stations.forEach(st => {
+                  channels.push({
+                    name: st.name || "Channel",
+                    url: st.url || "",
+                    group: gName,
+                    logo: st.image || "",
+                    referer: st.referer || "",
+                    userAgent: st.userAgent || "",
+                    status: "unknown"
+                  });
+                });
+              }
+            });
+          }
+          renderChannels();
+          return;
+        } catch (_) {}
+      }
+
+      const lines = content.split(/\r?\n/);
+      let curName = "";
+      let curGroup = "General";
+      let curLogo = "";
+      let curReferer = "";
+      let curUa = "";
+      let added = 0;
+
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        if (line.startsWith("#EXTINF:")) {
+          const groupMatch = line.match(/group-title="([^"]+)"/i);
+          if (groupMatch) curGroup = groupMatch[1];
+
+          const logoMatch = line.match(/tvg-logo="([^"]+)"/i);
+          if (logoMatch) curLogo = logoMatch[1];
+
+          const commaIdx = line.lastIndexOf(",");
+          if (commaIdx !== -1) {
+            curName = line.substring(commaIdx + 1).trim();
+          }
+        } else if (line.startsWith("#EXTVLCOPT:http-user-agent=") || line.startsWith("#EXTHTTP:")) {
+          if (line.includes("user-agent=")) curUa = line.split("user-agent=")[1].trim();
+          if (line.includes("referer=")) curReferer = line.split("referer=")[1].trim();
+        } else if (!line.startsWith("#")) {
+          if (line.startsWith("http://") || line.startsWith("https://") || line.startsWith("rtmp://") || line.startsWith("rtsp://")) {
+            channels.push({
+              name: curName || ("Channel " + (channels.length + 1)),
+              url: line,
+              group: curGroup || "General",
+              logo: curLogo,
+              referer: curReferer,
+              userAgent: curUa,
+              status: "unknown"
+            });
+            added++;
+            curName = "";
+            curGroup = "General";
+            curLogo = "";
+            curReferer = "";
+            curUa = "";
+          }
+        }
+      }
+
+      alert("✅ นำเข้าช่องรายการสำเร็จ " + added + " ช่อง!");
+      renderChannels();
+    }
+
+    async function testSingleLink(idx) {
+      const ch = channels[idx];
+      ch.status = "checking";
+      renderChannels();
+
+      try {
+        const resp = await fetch(HUB_SERVER + "/api/check-link", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: ch.url,
+            referer: ch.referer,
+            userAgent: ch.userAgent,
+            timeoutMs: 6000
+          })
+        });
+        const res = await resp.json();
+        ch.status = (res.success && res.alive) ? "alive" : "dead";
+      } catch (_) {
+        ch.status = "dead";
+      }
+      renderChannels();
+    }
+
+    async function checkAllLinks() {
+      if (channels.length === 0) {
+        alert("ไม่มีช่องรายการในเพลย์ลิสต์ให้ตรวจสอบ");
+        return;
+      }
+
+      const progressBg = document.getElementById("healthProgressBg");
+      const progressFill = document.getElementById("healthProgressFill");
+      const statusText = document.getElementById("healthStatusText");
+
+      progressBg.style.display = "block";
+      statusText.style.display = "block";
+      progressFill.style.width = "0%";
+
+      const total = channels.length;
+      let completed = 0;
+      const concurrency = 6;
+      let queue = channels.map((ch, idx) => ({ ch, idx }));
+
+      async function worker() {
+        while (queue.length > 0) {
+          const item = queue.shift();
+          item.ch.status = "checking";
+          renderChannels();
+
+          try {
+            const resp = await fetch(HUB_SERVER + "/api/check-link", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                url: item.ch.url,
+                referer: item.ch.referer,
+                userAgent: item.ch.userAgent,
+                timeoutMs: 6000
+              })
+            });
+            const res = await resp.json();
+            item.ch.status = (res.success && res.alive) ? "alive" : "dead";
+          } catch (_) {
+            item.ch.status = "dead";
+          }
+
+          completed++;
+          const pct = Math.round((completed / total) * 100);
+          progressFill.style.width = pct + "%";
+          statusText.textContent = "กำลังตรวจสอบ... " + completed + "/" + total + " ช่อง (" + pct + "%)";
+          renderChannels();
+        }
+      }
+
+      const workers = [];
+      for (let i = 0; i < Math.min(concurrency, total); i++) {
+        workers.push(worker());
+      }
+      await Promise.all(workers);
+
+      statusText.textContent = "✅ ตรวจสอบสถานะครบทั้งหมด " + total + " ช่องแล้ว";
+      setTimeout(() => {
+        progressBg.style.display = "none";
+        statusText.style.display = "none";
+      }, 4000);
+      renderChannels();
+    }
+
+    function removeDeadChannels() {
+      const deadCount = channels.filter(c => c.status === "dead").length;
+      if (deadCount === 0) {
+        alert("ไม่พบช่องที่ลิงก์เสีย");
+        return;
+      }
+      if (confirm("คุณต้องการลบช่องที่ลิงก์เสียทั้งหมด " + deadCount + " ช่อง ออกจากรายการใช่หรือไม่?")) {
+        channels = channels.filter(c => c.status !== "dead");
+        renderChannels();
+      }
+    }
+
+    function exportFile(format) {
+      if (channels.length === 0) {
+        alert("ไม่มีช่องรายการให้ส่งออก");
+        return;
+      }
+      const plName = document.getElementById("plName").value.trim() || "Chillup_Playlist";
+      const author = document.getElementById("plAuthor").value.trim() || "Chillup Studio";
+
+      if (format === "m3u") {
+        let content = "#EXTM3U name=\"" + plName + "\" author=\"" + author + "\"\n";
+        channels.forEach(ch => {
+          content += "#EXTINF:-1 tvg-logo=\"" + (ch.logo || "") + "\" group-title=\"" + (ch.group || "General") + "\"," + (ch.name || "Channel") + "\n";
+          if (ch.userAgent) content += "#EXTVLCOPT:http-user-agent=" + ch.userAgent + "\n";
+          if (ch.referer) content += "#EXTHTTP:{\"Referer\":\"" + ch.referer + "\"}\n";
+          content += ch.url + "\n";
+        });
+        downloadBlob(content, plName + ".m3u", "text/plain;charset=utf-8");
+      } else if (format === "w3u") {
+        const groupsMap = {};
+        channels.forEach(ch => {
+          const g = ch.group || "General";
+          if (!groupsMap[g]) groupsMap[g] = [];
+          groupsMap[g].push({
+            name: ch.name,
+            url: ch.url,
+            image: ch.logo,
+            referer: ch.referer,
+            userAgent: ch.userAgent
+          });
+        });
+        const w3uObj = {
+          name: plName,
+          author: author,
+          groups: Object.keys(groupsMap).map(g => ({
+            name: g,
+            stations: groupsMap[g]
+          }))
+        };
+        downloadBlob(JSON.stringify(w3uObj, null, 2), plName + ".w3u", "application/json;charset=utf-8");
+      }
+    }
+
+    function downloadBlob(text, filename, type) {
+      const blob = new Blob([text], { type: type });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    async function saveAndGenerateRedeemCode() {
+      if (channels.length === 0) {
+        alert("กรุณาเพิ่มช่องรายการอย่างน้อย 1 ช่องก่อนบันทึก");
+        return;
+      }
+      if (!currentUser || !currentUser.id) {
+        alert("กรุณาเข้าสู่ระบบก่อนบันทึก");
+        showLoginScreen();
+        return;
+      }
+
+      const plName = document.getElementById("plName").value.trim() || "My Playlist";
+      const author = document.getElementById("plAuthor").value.trim() || currentUser.name || "Creator";
+      const customCode = document.getElementById("plRedeemCode").value.trim().toUpperCase();
+
+      try {
+        const resp = await fetch(HUB_SERVER + "/api/user/save-playlist", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            name: plName,
+            author: author,
+            redeemCode: customCode,
+            channels: channels
+          })
+        });
+
+        const res = await resp.json();
+        if (res.success) {
+          document.getElementById("displayRedeemCode").textContent = res.redeemCode;
+          document.getElementById("plRedeemCode").value = res.redeemCode;
+          document.getElementById("redeemResultModal").style.display = "flex";
+        } else {
+          alert("บันทึกไม่สำเร็จ: " + (res.error || "เกิดข้อผิดพลาด"));
+        }
+      } catch (err) {
+        alert("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: " + err.message);
+      }
+    }
+
+    function closeRedeemModal() {
+      document.getElementById("redeemResultModal").style.display = "none";
+    }
+
+    function copyRedeemCode() {
+      const code = document.getElementById("displayRedeemCode").textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        alert("📋 คัดลอกรหัส [" + code + "] เรียบร้อยแล้ว! นำไปใส่ในแอป Chillup IPTV ได้ทันที");
+      });
+    }
+
+    async function loadMyPlaylists() {
+      if (!currentUser || !currentUser.id) return;
+      const tbody = document.getElementById("myPlaylistsTableBody");
+
+      try {
+        const resp = await fetch(HUB_SERVER + "/api/user/playlists?userId=" + encodeURIComponent(currentUser.id));
+        const res = await resp.json();
+
+        if (!res.success || !res.playlists || res.playlists.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="6" class="empty-placeholder">ยังไม่มีเพลย์ลิสต์ที่คุณบันทึกไว้</td></tr>';
+          return;
+        }
+
+        let html = "";
+        res.playlists.forEach(pl => {
+          const dateStr = pl.updatedAt ? new Date(pl.updatedAt).toLocaleDateString("th-TH") : "-";
+          const expStr = pl.expiry || "ไม่มีวันหมดอายุ";
+          html += '<tr>' +
+            '<td><b style="color: var(--text);">' + escapeHtml(pl.name) + '</b></td>' +
+            '<td><span class="code-display" style="font-size: 13px; padding: 2px 8px; margin: 0; display: inline-block;">' + escapeHtml(pl.redeemCode) + '</span></td>' +
+            '<td>' + (pl.channelCount || 0) + ' ช่อง</td>' +
+            '<td style="color: var(--text-muted);">' + escapeHtml(expStr) + '</td>' +
+            '<td style="color: var(--text-muted);">' + dateStr + '</td>' +
+            '<td style="text-align: center;">' +
+              '<div style="display: flex; gap: 4px; justify-content: center;">' +
+                '<button class="btn btn-primary btn-sm" onclick="loadPlaylistIntoEditor(\'' + escapeHtml(pl.redeemCode) + '\')" title="โหลดเข้าตัวแก้ไข">✏ โหลด</button>' +
+                '<button class="btn btn-secondary btn-sm" onclick="copyTextCode(\'' + escapeHtml(pl.redeemCode) + '\')" title="คัดลอกรหัส">📋 คัดลอก</button>' +
+                '<button class="btn btn-danger btn-sm" onclick="deleteUserPlaylist(\'' + escapeHtml(pl.id) + '\', \'' + escapeHtml(pl.redeemCode) + '\')" title="ลบ">🗑</button>' +
+              '</div>' +
+            '</td>' +
+          '</tr>';
+        });
+        tbody.innerHTML = html;
+      } catch (_) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-placeholder">ไม่สามารถดึงข้อมูลเพลย์ลิสต์จากเซิร์ฟเวอร์ได้</td></tr>';
+      }
+    }
+
+    async function loadPlaylistIntoEditor(code) {
+      try {
+        const resp = await fetch(HUB_SERVER + "/api/get-protected-playlist?code=" + encodeURIComponent(code));
+        const res = await resp.json();
+        if (res.success && res.channels) {
+          channels = res.channels;
+          document.getElementById("plName").value = res.name || "My Playlist";
+          document.getElementById("plAuthor").value = res.author || "Creator";
+          document.getElementById("plRedeemCode").value = res.redeemCode || code;
+          switchTab("editor");
+          renderChannels();
+          alert("✅ โหลดเพลย์ลิสต์ [" + (res.name || code) + "] เข้าตัวแก้ไขเรียบร้อยแล้ว (" + channels.length + " ช่อง)");
+        } else {
+          alert("ไม่พบข้อมูลเพลย์ลิสต์นี้");
+        }
+      } catch (err) {
+        alert("เกิดข้อผิดพลาด: " + err.message);
+      }
+    }
+
+    async function deleteUserPlaylist(plId, code) {
+      if (confirm("คุณต้องการลบเพลย์ลิสต์รหัส [" + code + "] ใช่หรือไม่?")) {
+        try {
+          await fetch(HUB_SERVER + "/api/user/delete-playlist", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              userId: currentUser.id,
+              playlistId: plId,
+              redeemCode: code
+            })
+          });
+          loadMyPlaylists();
+        } catch (_) {}
+      }
+    }
+
+    function copyTextCode(txt) {
+      navigator.clipboard.writeText(txt).then(() => {
+        alert("📋 คัดลอกรหัส [" + txt + "] แล้ว");
+      });
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
