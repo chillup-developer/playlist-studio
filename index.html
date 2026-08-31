@@ -1045,16 +1045,33 @@
     }
 
     function showAppScreen() {
-      document.getElementById("loginScreen").style.display = "none";
-      document.getElementById("appContainer").style.display = "flex";
-      updateUserUI();
-      renderChannels();
-      loadMyPlaylists();
-      
-      const authorInput = document.getElementById("plAuthor");
-      if (authorInput && (!authorInput.value || authorInput.value === "Creator")) {
-        authorInput.value = currentUser.name || "Creator";
+      try {
+        const loginEl = document.getElementById("loginScreen");
+        const appEl = document.getElementById("appContainer");
+        if (loginEl) loginEl.style.display = "none";
+        if (appEl) appEl.style.display = "flex";
+      } catch (e) {
+        console.error("Screen toggle error:", e);
       }
+
+      try {
+        updateUserUI();
+      } catch (e) { console.error("updateUserUI error:", e); }
+
+      try {
+        renderChannels();
+      } catch (e) { console.error("renderChannels error:", e); }
+
+      try {
+        loadMyPlaylists();
+      } catch (e) { console.error("loadMyPlaylists error:", e); }
+      
+      try {
+        const authorInput = document.getElementById("plAuthor");
+        if (authorInput && (!authorInput.value || authorInput.value === "Creator")) {
+          authorInput.value = (currentUser && currentUser.name) ? currentUser.name : "Creator";
+        }
+      } catch (_) {}
     }
 
     function handleEmailLogin(e) {
@@ -1077,18 +1094,61 @@
       showAppScreen();
     }
 
+    function parseJwt(token) {
+      try {
+        const base64Url = token.split('.')[1];
+        if (!base64Url) return null;
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        const pad = base64.length % 4;
+        const paddedBase64 = pad ? base64 + '='.repeat(4 - pad) : base64;
+        
+        // Decode UTF-8 safely for Thai / International characters
+        const raw = atob(paddedBase64);
+        const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i++) {
+          bytes[i] = raw.charCodeAt(i);
+        }
+        const decoded = new TextDecoder('utf-8').decode(bytes);
+        return JSON.parse(decoded);
+      } catch (e) {
+        try {
+          const base64Url = token.split('.')[1];
+          const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+          const jsonPayload = decodeURIComponent(
+            atob(base64)
+              .split('')
+              .map(function(c) {
+                return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+              })
+              .join('')
+          );
+          return JSON.parse(jsonPayload);
+        } catch (e2) {
+          console.error("JWT parse failed:", e2);
+          return null;
+        }
+      }
+    }
+
     function handleGoogleSignIn(response) {
       try {
-        const payload = JSON.parse(atob(response.credential.split(".")[1]));
+        if (!response || !response.credential) {
+          throw new Error("ไม่ได้รับข้อมูลการล็อกอินจาก Google");
+        }
+        const payload = parseJwt(response.credential);
+        if (!payload || !payload.sub) {
+          throw new Error("ข้อมูล Token ไม่ถูกต้อง");
+        }
         currentUser = {
           id: "g_" + payload.sub,
-          name: payload.name || "Google User",
-          email: payload.email,
+          name: payload.name || payload.email || "Google User",
+          email: payload.email || "",
           picture: payload.picture || ""
         };
         localStorage.setItem("chillup_user", JSON.stringify(currentUser));
         showAppScreen();
       } catch (err) {
+        console.error("Google Sign In Error:", err);
         alert("การเข้าสู่ระบบด้วย Google ไม่สำเร็จ: " + err.message);
       }
     }
