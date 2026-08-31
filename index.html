@@ -361,8 +361,8 @@
     /* Group Filter Chips */
     .chips-wrapper {
       display: flex;
+      flex-wrap: wrap;
       gap: 6px;
-      overflow-x: auto;
       padding: 4px 0 12px 0;
     }
     .chip {
@@ -714,6 +714,24 @@
             <label class="form-label">รหัส Redeem ที่ต้องการ (Custom Code)</label>
             <input type="text" id="plRedeemCode" placeholder="เว้นว่างเพื่อสุ่ม (เช่น PL-XXXX)" style="text-transform: uppercase;">
           </div>
+          <div class="form-group">
+            <label class="form-label">รูปปกเพลย์ลิสต์ (Playlist Logo / Cover URL)</label>
+            <input type="text" id="plLogo" placeholder="https://domain.com/playlist_cover.png">
+          </div>
+          <div class="form-group" style="grid-column: span 2;">
+            <label class="form-label">ข้อมูลอธิบาย / ประกาศ (Playlist Info / Description)</label>
+            <input type="text" id="plInfo" placeholder="เช่น เพลย์ลิสต์สำหรับผู้ใช้พรีเมียม อัปเดตรายวัน">
+          </div>
+        </div>
+
+        <!-- Group Covers Configuration Section -->
+        <div style="background: var(--surface-hover); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 20px;">
+          <h4 style="font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+            📂 ตั้งค่ารูปปกของกลุ่มสตรีมมิ่ง (Group Cover Settings)
+          </h4>
+          <div id="groupCoversContainer">
+            <div style="color: var(--text-faint); font-size: 12px;">กรุณาเพิ่มช่องรายการเพื่อให้มีกลุ่มกลุ่มสตรีมมิ่ง</div>
+          </div>
         </div>
 
         <!-- Progress Indicator -->
@@ -729,6 +747,7 @@
             <button class="btn btn-secondary btn-sm" onclick="openImportModal()">📥 นำเข้า (M3U / URL)</button>
             <button class="btn btn-secondary btn-sm" id="btnCheckAllLinks" onclick="toggleCheckLinks()">⚡ ตรวจสอบลิงก์</button>
             <button class="btn btn-danger btn-sm" onclick="removeDeadChannels()">🗑️ ลบช่องเสีย</button>
+            <button class="btn btn-secondary btn-sm" onclick="clearAllData()" style="color: var(--danger); border-color: rgba(239, 68, 68, 0.2);" title="ล้างข้อมูลในตัวแก้ไขทั้งหมด">🧹 ล้างข้อมูล</button>
           </div>
           <div class="action-group">
             <button class="btn btn-ghost btn-sm" onclick="exportFile('m3u')">⬇ M3U</button>
@@ -1040,6 +1059,72 @@
     let channels = [];
     let activeGroupFilter = "ALL";
     let editingIndex = -1;
+    let groupMetadata = {};
+
+    function getUniqueGroups() {
+      const groupsSet = new Set();
+      channels.forEach(ch => {
+        if (ch.group) groupsSet.add(ch.group.trim());
+      });
+      return Array.from(groupsSet).sort();
+    }
+
+    function renderGroupCoverSettings() {
+      const container = document.getElementById("groupCoversContainer");
+      if (!container) return;
+      const uniqueGroups = getUniqueGroups();
+      if (uniqueGroups.length === 0) {
+        container.innerHTML = '<div style="color: var(--text-faint); font-size: 12px; padding: 10px;">กรุณาเพิ่มช่องรายการเพื่อให้มีกลุ่มกลุ่มสตรีมมิ่ง</div>';
+        return;
+      }
+      
+      let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px;">';
+      uniqueGroups.forEach(g => {
+        const existingImg = (groupMetadata[g] && groupMetadata[g].image) || "";
+        html += `
+          <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 6px;">
+            <div style="font-size: 12px; font-weight: 700; color: var(--primary); display: flex; justify-content: space-between; align-items: center;">
+              <span>📂 ${escapeHtml(g)}</span>
+              ${existingImg ? `<img src="${escapeHtml(existingImg)}" style="width: 18px; height: 18px; object-fit: contain; border-radius: 4px; background: var(--surface);" onerror="this.style.display='none'">` : ''}
+            </div>
+            <input type="text" placeholder="URL รูปปกกลุ่ม (Group Cover URL)" value="${escapeHtml(existingImg)}" oninput="updateGroupCover('${escapeHtml(g)}', this.value)" style="padding: 6px 10px; font-size: 11px;">
+          </div>
+        `;
+      });
+      html += '</div>';
+      container.innerHTML = html;
+    }
+
+    function updateGroupCover(groupName, url) {
+      if (!groupMetadata[groupName]) groupMetadata[groupName] = {};
+      groupMetadata[groupName].image = url.trim();
+    }
+
+    function clearAllData() {
+      if (channels.length === 0) {
+        document.getElementById("plName").value = "My Playlist";
+        document.getElementById("plAuthor").value = "Creator";
+        document.getElementById("plLogo").value = "";
+        document.getElementById("plInfo").value = "";
+        document.getElementById("plRedeemCode").value = "";
+        groupMetadata = {};
+        renderChannels();
+        return;
+      }
+      if (confirm("⚠️ คุณต้องการล้างข้อมูลในช่องรายการ เพลย์ลิสต์ และกลุ่มทั้งหมดเพื่อเริ่มใหม่ใช่หรือไม่?")) {
+        channels = [];
+        document.getElementById("plName").value = "My Playlist";
+        document.getElementById("plAuthor").value = "Creator";
+        document.getElementById("plLogo").value = "";
+        document.getElementById("plInfo").value = "";
+        document.getElementById("plRedeemCode").value = "";
+        groupMetadata = {};
+        activeGroupFilter = "ALL";
+        currentPage = 1;
+        renderChannels();
+        alert("🧹 ล้างข้อมูลเรียบร้อยแล้ว!");
+      }
+    }
 
     // --- JWT & AUTHENTICATION ---
     function parseJwt(token) {
@@ -1503,6 +1588,7 @@
       });
 
       tbody.innerHTML = html;
+      renderGroupCoverSettings();
     }
 
     function selectGroup(g) {
@@ -1863,11 +1949,30 @@
           // Set playlist title / author if available in JSON
           if (obj.name) {
             const nameInput = document.getElementById("plName");
-            if (nameInput && (!nameInput.value || nameInput.value === "My Playlist")) nameInput.value = obj.name;
+            if (nameInput) nameInput.value = obj.name;
           }
           if (obj.author) {
             const authorInput = document.getElementById("plAuthor");
-            if (authorInput && (!authorInput.value || authorInput.value === "Creator")) authorInput.value = obj.author;
+            if (authorInput) authorInput.value = obj.author;
+          }
+          if (obj.image || obj.logo) {
+            const logoInput = document.getElementById("plLogo");
+            if (logoInput) logoInput.value = obj.image || obj.logo;
+          }
+          if (obj.info) {
+            const infoInput = document.getElementById("plInfo");
+            if (infoInput) infoInput.value = obj.info;
+          }
+
+          // Populate group metadata if available
+          if (obj.groupMetadata) {
+            groupMetadata = obj.groupMetadata;
+          } else if (obj.groups && Array.isArray(obj.groups)) {
+            obj.groups.forEach(g => {
+              if (g.name && g.image) {
+                groupMetadata[g.name] = { image: g.image };
+              }
+            });
           }
 
           // Case A: { groups: [ { name, stations: [...] } ] }
@@ -2219,8 +2324,12 @@
         const w3uObj = {
           name: plName,
           author: author,
+          image: document.getElementById("plLogo").value.trim() || undefined,
+          info: document.getElementById("plInfo").value.trim() || undefined,
+          groupMetadata: groupMetadata,
           groups: Object.keys(groupsMap).map(g => ({
             name: g,
+            image: (groupMetadata[g] && groupMetadata[g].image) || undefined,
             stations: groupsMap[g]
           }))
         };
@@ -2251,6 +2360,8 @@
 
       const plName = document.getElementById("plName").value.trim() || "My Playlist";
       const author = document.getElementById("plAuthor").value.trim() || currentUser.name || "Creator";
+      const plLogo = document.getElementById("plLogo").value.trim();
+      const plInfo = document.getElementById("plInfo").value.trim();
       const customCode = document.getElementById("plRedeemCode").value.trim().toUpperCase();
 
       try {
@@ -2261,6 +2372,9 @@
             userId: currentUser.id,
             name: plName,
             author: author,
+            image: plLogo,
+            info: plInfo,
+            groupMetadata: groupMetadata,
             redeemCode: customCode,
             channels: channels
           })
@@ -2336,6 +2450,9 @@
           channels = res.channels;
           document.getElementById("plName").value = res.name || "My Playlist";
           document.getElementById("plAuthor").value = res.author || "Creator";
+          document.getElementById("plLogo").value = res.image || res.logo || "";
+          document.getElementById("plInfo").value = res.info || "";
+          groupMetadata = res.groupMetadata || {};
           document.getElementById("plRedeemCode").value = res.redeemCode || code;
           switchTab("editor");
           renderChannels();
