@@ -938,9 +938,9 @@
     <!-- LOGIC SCRIPT -->
   <script>
     const GOOGLE_CLIENT_ID = "701662894116-c4gslc2e99gmg9dhhivreedq32sbpdhh.apps.googleusercontent.com";
-    let HUB_SERVER = localStorage.getItem("chillup_hub_server") || window.location.origin;
-    if (HUB_SERVER.startsWith("file://") || !HUB_SERVER || HUB_SERVER.includes("localhost")) {
-      HUB_SERVER = "https://iptv-app-proxy.natee-bumrungsiri.workers.dev";
+    let HUB_SERVER = localStorage.getItem("chillup_hub_server") || "";
+    if (!HUB_SERVER || HUB_SERVER.startsWith("file://") || HUB_SERVER.includes("localhost") || HUB_SERVER.includes("github.io") || HUB_SERVER.includes("127.0.0.1")) {
+      HUB_SERVER = "https://chillup-playlist-hub.natee-bumrungsiri.workers.dev";
     }
 
     let currentUser = null;
@@ -1499,27 +1499,114 @@
       renderChannels();
     }
 
-    async function testSingleLink(idx) {
-      const ch = channels[idx];
-      ch.status = "checking";
-      renderChannels();
+    // Browser Direct Probing fallback for local / geo-restricted Thai streams
+    function browserDirectProbe(url, timeoutMs = 4500) {
+      return new Promise((resolve) => {
+        let isDone = false;
+        const done = (val) => {
+          if (!isDone) {
+            isDone = true;
+            resolve(val);
+          }
+        };
 
+        const timer = setTimeout(() => done(false), timeoutMs);
+
+        // 1. Try HTML5 Video probe
+        try {
+          const video = document.createElement("video");
+          video.preload = "metadata";
+          video.muted = true;
+          
+          const onSuccess = () => { clearTimeout(timer); done(true); clean(); };
+          const clean = () => {
+            video.onloadedmetadata = null;
+            video.onloadeddata = null;
+            video.oncanplay = null;
+            video.onerror = null;
+            video.src = "";
+          };
+
+          video.onloadedmetadata = onSuccess;
+          video.onloadeddata = onSuccess;
+          video.oncanplay = onSuccess;
+          video.ondurationchange = onSuccess;
+          video.onprogress = onSuccess;
+
+          video.onerror = () => {
+            clean();
+            // 2. Video tag codec might not support raw TS or custom format in browser, probe via fetch no-cors
+            try {
+              fetch(url, { method: "HEAD", mode: "no-cors", cache: "no-store" })
+                .then(() => { clearTimeout(timer); done(true); })
+                .catch(() => {
+                  fetch(url, { method: "GET", mode: "no-cors", cache: "no-store" })
+                    .then(() => { clearTimeout(timer); done(true); })
+                    .catch(() => { clearTimeout(timer); done(false); });
+                });
+            } catch (_) {
+              clearTimeout(timer);
+              done(false);
+            }
+          };
+
+          video.src = url;
+          video.load();
+        } catch (_) {
+          clearTimeout(timer);
+          done(false);
+        }
+      });
+    }
+
+    async function probeChannelHealth(ch) {
+      if (!ch || !ch.url) return false;
+      const targetUrl = ch.url.trim();
+
+      // Check scheme
+      if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+        return true; // Assume custom protocol like rtmp://, rtsp:// is active
+      }
+
+      // 1. Try Cloudflare Worker Hub Checker first
       try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 6000);
         const resp = await fetch(HUB_SERVER + "/api/check-link", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            url: ch.url,
-            referer: ch.referer,
-            userAgent: ch.userAgent,
-            timeoutMs: 6000
-          })
+            url: targetUrl,
+            referer: ch.referer || "",
+            userAgent: ch.userAgent || "",
+            timeoutMs: 5000
+          }),
+          signal: controller.signal
         });
-        const res = await resp.json();
-        ch.status = (res.success && res.alive) ? "alive" : "dead";
-      } catch (_) {
-        ch.status = "dead";
+        clearTimeout(timer);
+
+        if (resp.ok) {
+          const res = await resp.json();
+          if (res.success && res.alive) {
+            return true;
+          }
+        }
+      } catch (err) {
+        console.warn("Hub check failed, testing via browser direct probe...", err);
       }
+
+      // 2. Fallback to Browser Direct Probing (Essential for Thai Geo-blocked streams & Local IPs)
+      return await browserDirectProbe(targetUrl);
+    }
+
+    async function testSingleLink(idx) {
+      const ch = channels[idx];
+      if (!ch) return;
+      ch.status = "checking";
+      renderChannels();
+
+      const isAlive = await probeChannelHealth(ch);
+      ch.status = isAlive ? "alive" : "dead";
       renderChannels();
     }
 
@@ -1539,7 +1626,7 @@
 
       const total = channels.length;
       let completed = 0;
-      const concurrency = 6;
+      const concurrency = 4;
       let queue = channels.map((ch, idx) => ({ ch, idx }));
 
       async function worker() {
@@ -1548,22 +1635,8 @@
           item.ch.status = "checking";
           renderChannels();
 
-          try {
-            const resp = await fetch(HUB_SERVER + "/api/check-link", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                url: item.ch.url,
-                referer: item.ch.referer,
-                userAgent: item.ch.userAgent,
-                timeoutMs: 6000
-              })
-            });
-            const res = await resp.json();
-            item.ch.status = (res.success && res.alive) ? "alive" : "dead";
-          } catch (_) {
-            item.ch.status = "dead";
-          }
+          const isAlive = await probeChannelHealth(item.ch);
+          item.ch.status = isAlive ? "alive" : "dead";
 
           completed++;
           const pct = Math.round((completed / total) * 100);
