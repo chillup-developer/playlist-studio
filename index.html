@@ -640,6 +640,7 @@
   </style>
 
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mpegts.js@1.7.3/dist/mpegts.min.js"></script>
   <script src="https://accounts.google.com/gsi/client" async defer></script>
 
 </head>
@@ -819,6 +820,8 @@
             <button class="btn btn-secondary btn-sm" onclick="openImportModal()">📥 นำเข้า (M3U / URL)</button>
             <button class="btn btn-secondary btn-sm" onclick="openGroupSettingsModal()" id="btnGroupSettings">📁 จัดการรูปปกกลุ่ม (<span id="groupSettingsCount">0</span>)</button>
             <button class="btn btn-secondary btn-sm" id="btnCheckAllLinks" onclick="toggleCheckLinks()">⚡ ตรวจสอบลิงก์</button>
+            <button class="btn btn-secondary btn-sm" onclick="autoCategorizeAllChannels()" title="แยกหมวดหมู่อัตโนมัติ: ดิจิทัลทีวี, กีฬา, หนัง, ซีรีส์, ข่าว, การ์ตูน แบบเดียวกับแอปแอนดรอยด์" style="background: rgba(168, 85, 247, 0.12); border-color: rgba(168, 85, 247, 0.35); color: #c084fc;">🤖 จัดหมวดหมู่อัจฉริยะ</button>
+            <button class="btn btn-secondary btn-sm" onclick="cleanChannelNames()" title="ตัดคำรกรุงรัง เช่น | FHD |, [HEVC], VIP-, HD 1080p ให้ชื่อช่องกระชับอ่านง่าย">🧹 คลีนชื่อช่อง</button>
             <button class="btn btn-danger btn-sm" onclick="removeDeadChannels()">🗑️ ลบช่องเสีย</button>
             <button class="btn btn-danger btn-sm" onclick="clearAllData()" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.3); color: var(--danger);" title="ล้างข้อมูลทั้งหมดในฟอร์มและตาราง">🧹 ล้างข้อมูล</button>
           </div>
@@ -3050,6 +3053,8 @@
       if (modal) modal.style.display = "none";
     }
 
+    let mpegtsInstance = null;
+
     function destroyPlayer() {
       if (playerDiagInterval) {
         clearInterval(playerDiagInterval);
@@ -3068,6 +3073,15 @@
           hlsInstance.destroy();
         } catch (_) {}
         hlsInstance = null;
+      }
+      if (mpegtsInstance) {
+        try {
+          mpegtsInstance.pause();
+          mpegtsInstance.unload();
+          mpegtsInstance.detachMediaElement();
+          mpegtsInstance.destroy();
+        } catch (_) {}
+        mpegtsInstance = null;
       }
     }
 
@@ -3092,7 +3106,118 @@
       }
     }
 
-    function startPlayback(rawUrl, forceProxy = isProxyPlaybackActive) {
+    async function resolveStalkerStreamUrlWeb(stalkerUrl) {
+      // 1. Query Hub Worker first
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 8000);
+        const resp = await fetch(HUB_SERVER + "/api/stalker/resolve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ stalkerUrl }),
+          signal: controller.signal
+        });
+        clearTimeout(timer);
+        if (resp.ok) {
+          const res = await resp.json();
+          if (res.success && res.streamUrl) {
+            return {
+              success: true,
+              playableUrl: res.playableUrl || res.streamUrl,
+              directStreamUrl: res.streamUrl,
+              mac: res.mac,
+              token: res.token,
+              headers: res.headers
+            };
+          }
+        }
+      } catch (err) {
+        console.warn("Hub stalker resolve warning:", err);
+      }
+
+      // 2. Client-side Handshake + create_link via Proxy fallback
+      try {
+        let raw = stalkerUrl.replace(/^stalker:\/\//i, "").replace(/^stb:\/\//i, "");
+        const baseWithoutHeaders = raw.split("|")[0];
+        const endpointPart = baseWithoutHeaders.split("?")[0];
+        const queryString = baseWithoutHeaders.includes("?") ? baseWithoutHeaders.substring(baseWithoutHeaders.indexOf("?") + 1) : "";
+        const params = new URLSearchParams(queryString);
+
+        let endpoint = endpointPart || "";
+        let type = params.get("type") || "itv";
+        let cmd = params.get("cmd") || "";
+        let rawMacs = params.get("macs") || params.get("mac") || "";
+
+        const macTokens = parseMacAddresses(rawMacs);
+        const STB_UA = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3";
+        const portalHost = endpoint.split("/server/load.php")[0].split("/load.php")[0];
+
+        for (const mac of macTokens) {
+          const hsUrl = `${endpoint}?type=stb&action=handshake&token=&mac=${encodeURIComponent(mac)}&JsHttpRequest=1-xml`;
+          const hsReq = await requestViaProxyOrDirect(hsUrl, {
+            headers: {
+              "User-Agent": STB_UA,
+              "X-User-Agent": "Model: MAG250; Link: Ethernet",
+              "Cookie": `mac=${mac}; stb_lang=en; timezone=Europe/London;`
+            }
+          });
+
+          if (!hsReq.success || !hsReq.data) continue;
+          let token = "";
+          try {
+            const j = JSON.parse(hsReq.data);
+            if (j.js && j.js.token) token = j.js.token;
+          } catch (_) {
+            const m = hsReq.data.match(/"token"\s*:\s*"([^"]+)"/i);
+            if (m) token = m[1];
+          }
+
+          if (!token) continue;
+
+          const linkUrl = `${endpoint}?type=${type}&action=create_link&cmd=${encodeURIComponent(cmd)}&mac=${encodeURIComponent(mac)}&JsHttpRequest=1-xml`;
+          const linkReq = await requestViaProxyOrDirect(linkUrl, {
+            headers: {
+              "User-Agent": STB_UA,
+              "X-User-Agent": "Model: MAG250; Link: Ethernet",
+              "Authorization": `Bearer ${token}`,
+              "Cookie": `mac=${mac}; stb_lang=en; timezone=Europe/London; token=${token};`
+            }
+          });
+
+          if (!linkReq.success || !linkReq.data) continue;
+          let extractedLink = "";
+          try {
+            const lj = JSON.parse(linkReq.data);
+            if (lj.js) {
+              extractedLink = (typeof lj.js === "object") ? (lj.js.cmd || lj.js.url || "") : lj.js;
+            }
+          } catch (_) {
+            const m = linkReq.data.match(/"cmd"\s*:\s*"([^"]+)"/i) || linkReq.data.match(/"url"\s*:\s*"([^"]+)"/i);
+            if (m) extractedLink = m[1];
+          }
+
+          if (extractedLink && extractedLink.startsWith("/")) {
+            extractedLink = portalHost + extractedLink;
+          }
+
+          if (extractedLink && (extractedLink.startsWith("http://") || extractedLink.startsWith("https://"))) {
+            return {
+              success: true,
+              playableUrl: `${extractedLink}|User-Agent=${STB_UA}|Cookie=mac=${mac}; stb_lang=en; timezone=Europe/London; token=${token};`,
+              directStreamUrl: extractedLink,
+              mac: mac,
+              token: token
+            };
+          }
+        }
+      } catch (err) {
+        console.error("Client stalker fallback error:", err);
+      }
+
+      return { success: false, error: "Stalker portal MAC authorization failed" };
+    }
+
+    async function startPlayback(rawUrl, forceProxy = isProxyPlaybackActive) {
       currentRawStreamUrl = rawUrl || "";
       isProxyPlaybackActive = !!forceProxy;
       const chk = document.getElementById("chkUseProxyMode");
@@ -3107,24 +3232,90 @@
         return;
       }
 
-      const origUrl = normalizePlaylistUrl(rawUrl.trim());
-      const url = forceProxy ? getStreamProxyUrl(origUrl) : origUrl;
+      let targetUrl = rawUrl.trim();
+      const diagStatus = document.getElementById("diagStatus");
+      const diagEngine = document.getElementById("diagEngine");
+      const formatBadge = document.getElementById("playerFormatBadge");
       const video = document.getElementById("studioVideoPlayer");
       if (!video) return;
 
-      const formatBadge = document.getElementById("playerFormatBadge");
-      const isHls = url.toLowerCase().includes(".m3u8") || url.toLowerCase().includes("/hls/") || url.toLowerCase().includes("playlist.m3u8");
-      
+      // 1. Check if URL is Stalker Portal
+      if (targetUrl.toLowerCase().startsWith("stalker://") || targetUrl.toLowerCase().startsWith("stb://") || (targetUrl.includes("action=create_link") && targetUrl.includes("type=itv"))) {
+        setPlayerLoading(true, "📡 กำลัง Handshake & ขอ Token จาก MAG Stalker Portal...");
+        if (diagStatus) { diagStatus.textContent = "🟡 MAG STB Handshake..."; diagStatus.style.color = "var(--warning)"; }
+        if (diagEngine) diagEngine.textContent = "Stalker Engine";
+        if (formatBadge) formatBadge.textContent = "MAG STB Live";
+
+        const stalkerRes = await resolveStalkerStreamUrlWeb(targetUrl);
+        if (stalkerRes.success && stalkerRes.directStreamUrl) {
+          targetUrl = stalkerRes.directStreamUrl;
+          if (diagEngine) diagEngine.textContent = `STB (${(stalkerRes.mac || "").slice(-5)})`;
+        } else {
+          setPlayerError(true, "ไม่สามารถเชื่อมต่อ Stalker Portal ได้", "MAC Address อาจหมดอายุ ถูกบล็อก หรือเซิร์ฟเวอร์ปฏิเสธการเชื่อมต่อ");
+          return;
+        }
+      }
+
+      // Parse headers from URL if any
+      const { cleanUrl, userAgent, referer } = parseChannelStreamHeaders(targetUrl);
+      const streamUrlToPlay = forceProxy ? getStreamProxyUrl(cleanUrl, referer) : cleanUrl;
+      const lower = cleanUrl.toLowerCase();
+      const isHls = lower.includes(".m3u8") || lower.includes("/hls/") || lower.includes("playlist.m3u8");
+      const isMpegTs = lower.includes(".ts") || lower.endsWith("/ts") || lower.includes("output=ts") || lower.includes(".flv");
+
       if (formatBadge) {
-        formatBadge.textContent = isHls ? "HLS (.m3u8)" : (url.toLowerCase().endsWith(".mp4") ? "MP4 Video" : "Live Stream");
+        formatBadge.textContent = isHls ? "HLS (.m3u8)" : (isMpegTs ? "MPEG-TS (.ts)" : (lower.endsWith(".mp4") ? "MP4 Video" : "Live Stream"));
       }
 
       setPlayerLoading(true, "กำลังโหลดและประมวลผลสตรีม...");
-      const diagStatus = document.getElementById("diagStatus");
-      const diagEngine = document.getElementById("diagEngine");
       if (diagStatus) { diagStatus.textContent = "🟡 กำลังเชื่อมต่อ..."; diagStatus.style.color = "var(--warning)"; }
 
-      // Check for Hls.js support
+      // 2. Play MPEG-TS / FLV via mpegts.js
+      if (isMpegTs && window.mpegts && mpegts.isSupported()) {
+        if (diagEngine) diagEngine.textContent = isProxyPlaybackActive ? "MPEG-TS.js + ⚡Proxy" : "MPEG-TS.js (MSE)";
+        try {
+          mpegtsInstance = mpegts.createPlayer({
+            type: lower.includes(".flv") ? "flv" : "mse",
+            isLive: true,
+            url: streamUrlToPlay,
+            cors: true
+          }, {
+            enableWorker: true,
+            lazyLoad: false,
+            stashInitialSize: 128
+          });
+
+          mpegtsInstance.attachMediaElement(video);
+          mpegtsInstance.load();
+          mpegtsInstance.play().then(() => {
+            setPlayerLoading(false);
+            if (diagStatus) { diagStatus.textContent = "🟢 กำลังเล่น (Playing)"; diagStatus.style.color = "var(--success)"; }
+            if (channels && currentPlayerChannelIndex >= 0 && currentPlayerChannelIndex < channels.length) {
+              channels[currentPlayerChannelIndex].status = "alive";
+              renderChannels();
+              updateStats();
+            }
+          }).catch(e => {
+            video.muted = true;
+            video.play().catch(() => {});
+          });
+
+          mpegtsInstance.on(mpegts.Events.ERROR, (errType, errDetail) => {
+            console.warn("mpegts error:", errType, errDetail);
+            if (!isProxyPlaybackActive) {
+              setPlayerError(true, "สตรีม MPEG-TS ไม่สามารถเชื่อมต่อตรงได้ (CORS)", "กดปุ่ม '⚡ เล่นผ่าน Proxy' ด้านล่างเพื่อส่งข้อมูลผ่านระบบข้าม CORS");
+            } else {
+              setPlayerError(true, "เกิดข้อผิดพลาดในการถอดรหัส MPEG-TS", errDetail || "สัญญาณภาพไม่เสถียร");
+            }
+          });
+          startDiagnosticsPoller();
+          return;
+        } catch (e) {
+          console.warn("Failed to init mpegts player, falling back...", e);
+        }
+      }
+
+      // 3. Play HLS via Hls.js
       if (isHls && window.Hls && Hls.isSupported()) {
         if (diagEngine) diagEngine.textContent = isProxyPlaybackActive ? "HLS.js + ⚡Proxy" : "HLS.js (Direct)";
         hlsInstance = new Hls({
@@ -3137,7 +3328,7 @@
           fragLoadingTimeOut: 15000
         });
 
-        hlsInstance.loadSource(url);
+        hlsInstance.loadSource(streamUrlToPlay);
         hlsInstance.attachMedia(video);
 
         hlsInstance.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
@@ -3145,7 +3336,6 @@
           populateQualityLevels(data.levels || []);
           populateAudioTracks(hlsInstance.audioTracks || []);
           video.play().catch(e => {
-            console.log("Autoplay prevented:", e);
             video.muted = true;
             video.play().catch(() => {});
           });
@@ -3170,7 +3360,6 @@
           if (data.fatal) {
             switch (data.type) {
               case Hls.ErrorTypes.NETWORK_ERROR:
-                console.error("Fatal network error in HLS:", data);
                 if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR || data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT) {
                   if (!isProxyPlaybackActive) {
                     setPlayerError(true, "เซิร์ฟเวอร์สตรีมบล็อก CORS (เบราว์เซอร์เข้าถึงตรงไม่ได้)", "เบราว์เซอร์บล็อกการเข้าถึงเนื่องจากนโยบายความปลอดภัย (CORS) แต่ในแอป Android / กล่องทีวีจะเล่นได้ปกติ กดปุ่มด้านล่างเพื่อเล่นผ่าน Proxy ทันที");
@@ -3182,7 +3371,6 @@
                 }
                 break;
               case Hls.ErrorTypes.MEDIA_ERROR:
-                console.error("Fatal media error in HLS:", data);
                 hlsInstance.recoverMediaError();
                 break;
               default:
@@ -3196,7 +3384,7 @@
       } else if (video.canPlayType("application/vnd.apple.mpegurl") || !isHls) {
         // Native video playback (Safari iOS/macOS or Direct MP4/WebM)
         if (diagEngine) diagEngine.textContent = "HTML5 Native";
-        video.src = url;
+        video.src = streamUrlToPlay;
         video.addEventListener("loadedmetadata", function onMeta() {
           video.removeEventListener("loadedmetadata", onMeta);
           setPlayerLoading(false);
@@ -3221,6 +3409,137 @@
       }
 
       startDiagnosticsPoller();
+    }
+
+    // =========================================================================
+    // 🤖 SMART AUTO-CATEGORIZATION & CHANNEL CLEANER ENGINE (MATCHING ANDROID)
+    // =========================================================================
+
+    const SMART_CATEGORY_RULES = [
+      {
+        name: "ดิจิทัลทีวี",
+        cover: "https://raw.githubusercontent.com/Free-TV/IPTV/master/logos/th.png",
+        match: (name, url) => {
+          const n = name.toLowerCase();
+          return /(ช่อง\s*3|ch3|3hd|channel 3|ช่อง\s*5|ch5|5hd|ช่อง\s*7|ch7|7hd|ช่อง\s*8|ch8|ช่อง\s*9|ch9|mcot|one\s*31|วัน 31|gmm\s*25|thairath|ไทยรัฐ|amarin|อมรินทร์|nbt|thaipbs|ไทยพีบีเอส|mono\s*29|tnn\s*16|true4u|nation\s*22|pptv\s*36|t-sports|tsports|jkn\s*18|gmm25|workpoint|เวิร์คพอยท์)/i.test(n);
+        }
+      },
+      {
+        name: "กีฬา & ฟุตบอล",
+        cover: "https://images.unsplash.com/photo-1508098682722-e99c43a406b2?w=100&q=80",
+        match: (name, url) => {
+          const n = name.toLowerCase();
+          return /(premier|football|bein|spotv|truesport|true sport|sports|sport|laliga|bundesliga|serie a|champions league|nba|wwe|ufc|f1|formula 1|motogp|golf|badminton|tennis|astro super|fight)/i.test(n);
+        }
+      },
+      {
+        name: "ภาพยนตร์ & บันเทิง",
+        cover: "https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?w=100&q=80",
+        match: (name, url) => {
+          const n = name.toLowerCase();
+          return /(hbo|cinemax|true film|true movie|warner|fox movie|paramount|cinema|movie|film|box office|hits|axn|action|thriller|comedy|drama|hollywood)/i.test(n) && !/s\d+e\d+|ep\d+|ตอนที่/i.test(n);
+        }
+      },
+      {
+        name: "ซีรีส์ & ละคร",
+        cover: "https://images.unsplash.com/photo-1522869635100-9f4c5e86aa37?w=100&q=80",
+        match: (name, url) => {
+          const n = name.toLowerCase();
+          return /(s\d+e\d+|ep\d+|ตอนที่|season\s*\d+|ss\d+|series|ซีรีส์|ละคร|k-drama|kdrama|c-drama|anime)/i.test(n);
+        }
+      },
+      {
+        name: "สารคดี & ข่าว",
+        cover: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=100&q=80",
+        match: (name, url) => {
+          const n = name.toLowerCase();
+          return /(discovery|national geographic|nat geo|animal planet|history|bbc|cnn|al jazeera|nhk|cgtn|news|สารคดี|สำนักข่าว|bloomberg|cnbc)/i.test(n);
+        }
+      },
+      {
+        name: "การ์ตูน & เด็ก",
+        cover: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=100&q=80",
+        match: (name, url) => {
+          const n = name.toLowerCase();
+          return /(cartoon|disney|nickelodeon|nick jr|boomerang|animax|kids|การ์ตูน|เด็ก|anime)/i.test(n);
+        }
+      },
+      {
+        name: "เพลง & ดนตรี",
+        cover: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=100&q=80",
+        match: (name, url) => {
+          const n = name.toLowerCase();
+          return /(mtv|vh1|music|radio|เพลง|fm\s*\d+|วิทยุ|pop|rock|dance|hits)/i.test(n);
+        }
+      }
+    ];
+
+    function cleanTitleString(rawName) {
+      if (!rawName) return "Channel";
+      let cleaned = rawName
+        .replace(/\|\s*(?:FHD|HD|SD|4K|2K|HEVC|H\.265|RAW|VIP|TH|EN|THAI)\s*\|/gi, "")
+        .replace(/\[(?:FHD|HD|SD|4K|2K|HEVC|H\.265|RAW|VIP|TH|EN|THAI)\]/gi, "")
+        .replace(/\((?:FHD|HD|SD|4K|2K|HEVC|H\.265|RAW|VIP|TH|EN|THAI)\)/gi, "")
+        .replace(/^(?:VIP-|TH:|EN:|LIVE:|THAI:)\s*/i, "")
+        .replace(/\s+(?:1080p|720p|50fps|60fps|HEVC|H265|FHD|UHD|4K)$/i, "")
+        .replace(/\s+/g, " ")
+        .trim();
+      return cleaned || rawName;
+    }
+
+    function autoCategorizeAllChannels() {
+      if (!channels || channels.length === 0) {
+        alert("ยังไม่มีช่องในเพลย์ลิสต์ให้จัดหมวดหมู่");
+        return;
+      }
+      let categorizedCount = 0;
+      let cleanedCount = 0;
+
+      channels.forEach(ch => {
+        const oldGroup = ch.group || "General";
+        const oldName = ch.name || "";
+        const cleanName = cleanTitleString(oldName);
+        if (cleanName !== oldName) {
+          ch.name = cleanName;
+          cleanedCount++;
+        }
+
+        for (const rule of SMART_CATEGORY_RULES) {
+          if (rule.match(ch.name || "", ch.url || "")) {
+            if (ch.group !== rule.name) {
+              ch.group = rule.name;
+              categorizedCount++;
+            }
+            if (rule.cover && !groupCovers[rule.name]) {
+              groupCovers[rule.name] = rule.cover;
+            }
+            break;
+          }
+        }
+      });
+
+      renderGroupPills();
+      renderChannels();
+      updateStats();
+      alert("🤖 จัดหมวดหมู่อัจฉริยะเสร็จสิ้น!\n• จัดกลุ่มใหม่: " + categorizedCount + " ช่อง\n• คลีนชื่อช่อง: " + cleanedCount + " ช่อง");
+    }
+
+    function cleanChannelNames() {
+      if (!channels || channels.length === 0) {
+        alert("ยังไม่มีช่องในเพลย์ลิสต์");
+        return;
+      }
+      let count = 0;
+      channels.forEach(ch => {
+        const oldName = ch.name || "";
+        const cleaned = cleanTitleString(oldName);
+        if (cleaned !== oldName) {
+          ch.name = cleaned;
+          count++;
+        }
+      });
+      renderChannels();
+      alert("🧹 คลีนชื่อช่องเรียบร้อยแล้ว (" + count + " ช่องถูกปรับปรุง)");
     }
 
     function populateQualityLevels(levels) {
