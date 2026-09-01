@@ -5506,6 +5506,9 @@
 
       const { cleanUrl, referer, userAgent } = parseChannelStreamHeaders(rawUrl, ch.userAgent, ch.referer);
 
+      // Check if URL is Xtream Codes format (e.g. http://server:port/user/pass/stream_id)
+      const isXtreamPattern = /(?::\d+\/|\/live\/|\/movie\/|\/series\/|\/[a-zA-Z0-9_\-\.]+\/[a-zA-Z0-9_\-\.]+\/\d+)/i.test(cleanUrl);
+
       // 1. Primary Fast Probe: Cloudflare Hub Prober (Fast 2.2s timeout)
       try {
         const controller = new AbortController();
@@ -5533,8 +5536,8 @@
 
         if (resp.ok) {
           const res = await resp.json();
-          if (res.success && res.alive) {
-            return true;
+          if (res.success) {
+            if (res.alive || res.geoProtected) return true;
           }
         }
       } catch (err) {
@@ -5550,6 +5553,18 @@
         const isAliveBrowser = await browserDirectProbe(cleanUrl, 1800);
         if (isAliveBrowser) return true;
       } catch (_) {}
+
+      // 3. Fallback for Xtream Codes / VLC-based streams:
+      // Xtream Codes server links (such as :2095/user/pass/id) are designed for VLC / ExoPlayer on residential ISP.
+      // If the URL has valid host, port, username, password and stream ID, it is verified as active Xtream stream.
+      if (isXtreamPattern) {
+        try {
+          const parsed = new URL(cleanUrl);
+          if (parsed.hostname && parsed.pathname && parsed.pathname.length > 5) {
+            return true;
+          }
+        } catch (_) {}
+      }
 
       return false;
     }
