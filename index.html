@@ -819,7 +819,14 @@
             <button class="btn btn-primary btn-sm" onclick="openAddChannelModal()">+ เพิ่มช่อง</button>
             <button class="btn btn-secondary btn-sm" onclick="openImportModal()">📥 นำเข้า (M3U / URL)</button>
             <button class="btn btn-secondary btn-sm" onclick="openGroupSettingsModal()" id="btnGroupSettings">📁 จัดการรูปปกกลุ่ม (<span id="groupSettingsCount">0</span>)</button>
-            <button class="btn btn-secondary btn-sm" id="btnCheckAllLinks" onclick="toggleCheckLinks()">⚡ ตรวจสอบลิงก์</button>
+            <div style="display: inline-flex; align-items: center; gap: 4px;">
+              <button class="btn btn-secondary btn-sm" id="btnCheckAllLinks" onclick="toggleCheckLinks()">⚡ ตรวจสอบลิงก์</button>
+              <select id="checkConcurrencySelect" class="btn btn-secondary btn-sm" style="padding: 4px 6px; font-size: 11px; height: 32px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px;" title="เลือกรูปแบบการตรวจสอบ (ตรวจทีละอัน หรือ ตรวจพร้อมกันหลายช่อง)">
+                <option value="1" selected>🔍 ตรวจทีละอัน (1 ช่อง)</option>
+                <option value="2">⚡ ตรวจทีละ 2 ช่อง</option>
+                <option value="4">🚀 ตรวจทีละ 4 ช่อง (เร็ว)</option>
+              </select>
+            </div>
             <button class="btn btn-secondary btn-sm" onclick="autoCategorizeAllChannels()" title="แยกหมวดหมู่อัตโนมัติ: ดิจิทัลทีวี, กีฬา, หนัง, ซีรีส์, ข่าว, การ์ตูน แบบเดียวกับแอปแอนดรอยด์" style="background: rgba(168, 85, 247, 0.12); border-color: rgba(168, 85, 247, 0.35); color: #c084fc;">🤖 จัดหมวดหมู่อัจฉริยะ</button>
             <button class="btn btn-secondary btn-sm" onclick="cleanChannelNames()" title="ตัดคำรกรุงรัง เช่น | FHD |, [HEVC], VIP-, HD 1080p ให้ชื่อช่องกระชับอ่านง่าย">🧹 คลีนชื่อช่อง</button>
             <button class="btn btn-danger btn-sm" onclick="removeDeadChannels()">🗑️ ลบช่องเสีย</button>
@@ -2841,6 +2848,10 @@
 
       if (isCheckingLinks) return;
       isCheckingLinks = true;
+      checkLinksAbortController = new AbortController();
+
+      const concSelect = document.getElementById("checkConcurrencySelect");
+      const concurrency = concSelect ? Math.max(1, parseInt(concSelect.value) || 1) : 1;
 
       const groupLabel = activeGroupFilter === "ALL" ? "ทุกช่อง" : "กลุ่ม [" + activeGroupFilter + "]";
       const btn = document.getElementById("btnCheckAllLinks");
@@ -2856,13 +2867,12 @@
       if (progressBg) progressBg.style.display = "block";
       if (statusText) {
         statusText.style.display = "block";
-        statusText.textContent = "กำลังเริ่มตรวจสอบสถานะ" + groupLabel + "...";
+        statusText.textContent = `⚡ เริ่มตรวจสอบ ${groupLabel} (${concurrency === 1 ? 'ทีละอัน' : concurrency + ' ช่องพร้อมกัน'})...`;
       }
       if (progressFill) progressFill.style.width = "0%";
 
       const total = targetChannels.length;
       let completed = 0;
-      const concurrency = 4;
       let queue = targetChannels.map((ch, idx) => ({ ch, idx }));
 
       async function worker() {
@@ -2871,18 +2881,31 @@
           if (!item) break;
 
           item.ch.status = "checking";
+          const currentNum = completed + 1;
+          const currentPct = Math.round((completed / total) * 100);
+
+          if (statusText) {
+            statusText.innerHTML = `⚡ <b>[${currentNum}/${total}]</b> กำลังตรวจสอบ: <span style="color: var(--primary);">${escapeHtml(item.ch.name || 'Channel')}</span> (${currentPct}%)`;
+          }
+          if (progressFill) progressFill.style.width = currentPct + "%";
           renderChannels();
 
-          const isAlive = await probeChannelHealth(item.ch);
+          const isAlive = await probeChannelHealth(item.ch, checkLinksAbortController ? checkLinksAbortController.signal : null);
           if (!isCheckingLinks) break;
 
           item.ch.status = isAlive ? "alive" : "dead";
-
           completed++;
-          const pct = Math.round((completed / total) * 100);
-          if (progressFill) progressFill.style.width = pct + "%";
-          if (statusText) statusText.textContent = "กำลังตรวจสอบ" + groupLabel + "... " + completed + "/" + total + " ช่อง (" + pct + "%)";
+          const finalPct = Math.round((completed / total) * 100);
+
+          if (progressFill) progressFill.style.width = finalPct + "%";
+          if (statusText) {
+            statusText.innerHTML = `⚡ ตรวจสอบ ${groupLabel}... <b>${completed}/${total}</b> ช่อง (${finalPct}%)`;
+          }
           renderChannels();
+          updateStats();
+
+          // Smooth yield to prevent browser UI freeze
+          await new Promise(r => setTimeout(r, concurrency === 1 ? 50 : 20));
         }
       }
 
@@ -2894,15 +2917,22 @@
 
       if (isCheckingLinks) {
         isCheckingLinks = false;
+        checkLinksAbortController = null;
         updateCheckButtonLabel();
-        if (statusText) statusText.textContent = "✅ ตรวจสอบสถานะ" + groupLabel + " ครบ " + total + " ช่องแล้ว";
+        const aliveTotal = targetChannels.filter(c => c.status === "alive").length;
+        const deadTotal = targetChannels.filter(c => c.status === "dead").length;
+
+        if (statusText) {
+          statusText.innerHTML = `✅ ตรวจสอบครบ ${total} ช่อง: <span style="color: var(--success); font-weight: 600;">🟢 ใช้ได้ ${aliveTotal}</span> | <span style="color: var(--danger); font-weight: 600;">🔴 เสีย ${deadTotal}</span>`;
+        }
         setTimeout(() => {
           if (!isCheckingLinks) {
             if (progressBg) progressBg.style.display = "none";
             if (statusText) statusText.style.display = "none";
           }
-        }, 4000);
+        }, 4500);
         renderChannels();
+        updateStats();
       }
     }
 
@@ -5453,7 +5483,7 @@
       });
     }
 
-    async function probeChannelHealth(ch) {
+    async function probeChannelHealth(ch, externalSignal = null) {
       if (!ch || !ch.url) return false;
       const rawUrl = ch.url.trim();
 
@@ -5470,12 +5500,24 @@
         return true;
       }
 
-      const { cleanUrl, referer, userAgent, extraHeaders } = parseChannelStreamHeaders(rawUrl, ch.userAgent, ch.referer);
+      if (externalSignal && externalSignal.aborted) {
+        return false;
+      }
 
-      // 1. First Tier: Cloudflare Hub Prober (Matches Android App OkHttp Engine)
+      const { cleanUrl, referer, userAgent } = parseChannelStreamHeaders(rawUrl, ch.userAgent, ch.referer);
+
+      // 1. Primary Fast Probe: Cloudflare Hub Prober (Fast 2.2s timeout)
       try {
         const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), 6000);
+        const timer = setTimeout(() => controller.abort(), 2400);
+
+        if (externalSignal) {
+          externalSignal.addEventListener("abort", () => {
+            clearTimeout(timer);
+            controller.abort();
+          }, { once: true });
+        }
+
         const resp = await fetch(HUB_SERVER + "/api/check-link", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -5483,7 +5525,7 @@
             url: rawUrl,
             referer: referer,
             userAgent: userAgent,
-            timeoutMs: 5000
+            timeoutMs: 2000
           }),
           signal: controller.signal
         });
@@ -5496,39 +5538,20 @@
           }
         }
       } catch (err) {
-        console.warn("Hub check error:", err);
+        // Fast fallback if Hub worker is offline / aborted
       }
 
-      // 2. Second Tier: Fetch via Proxy (Bypasses CORS and inspects raw M3U8/stream response)
+      if (externalSignal && externalSignal.aborted) {
+        return false;
+      }
+
+      // 2. Direct Browser probe (Fast 1.8s timeout)
       try {
-        const proxyResp = await fetch(HUB_SERVER + "/api/proxy", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            targetUrl: cleanUrl,
-            method: "GET",
-            headers: {
-              "User-Agent": userAgent || "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-              "Accept": "*/*",
-              ...(referer && referer.toLowerCase() !== "none" ? { "Referer": referer } : {}),
-              ...extraHeaders
-            }
-          })
-        });
-        if (proxyResp.ok) {
-          const res = await proxyResp.json();
-          if (res.success && (res.status >= 200 && res.status < 400 || res.status === 206)) {
-            const data = (res.data || "").trim();
-            // If it returns M3U8 content or stream binary, it is 100% ALIVE
-            if (data.includes("#EXTM3U") || data.includes("#EXTINF") || data.length > 50) {
-              return true;
-            }
-          }
-        }
+        const isAliveBrowser = await browserDirectProbe(cleanUrl, 1800);
+        if (isAliveBrowser) return true;
       } catch (_) {}
 
-      // 3. Third Tier: Browser Direct Probe (Essential for Thai ISP / Geo-blocked / Local Lan IP streams)
-      return await browserDirectProbe(cleanUrl, 4000);
+      return false;
     }
 
     async function testSingleLink(idx) {
@@ -5540,6 +5563,7 @@
       const isAlive = await probeChannelHealth(ch);
       ch.status = isAlive ? "alive" : "dead";
       renderChannels();
+      updateStats();
     }
 
     function removeDeadChannels() {
