@@ -3125,8 +3125,12 @@
       const overlay = document.getElementById("playerErrorOverlay");
       const titleEl = document.getElementById("playerErrorTitle");
       const descEl = document.getElementById("playerErrorDesc");
-      if (titleEl && title) titleEl.textContent = title;
-      if (descEl && desc) descEl.textContent = desc;
+      const btnRetryProxy = document.getElementById("btnRetryWithProxy");
+      if (titleEl && title) titleEl.innerHTML = title;
+      if (descEl && desc) descEl.innerHTML = desc;
+      if (btnRetryProxy) {
+        btnRetryProxy.style.display = isProxyPlaybackActive ? "none" : "inline-flex";
+      }
       if (overlay) overlay.style.display = isError ? "flex" : "none";
       if (isError) {
         setPlayerLoading(false);
@@ -3332,10 +3336,19 @@
 
           mpegtsInstance.on(mpegts.Events.ERROR, (errType, errDetail) => {
             console.warn("mpegts error:", errType, errDetail);
-            if (!isProxyPlaybackActive) {
+            const detailStr = String(errDetail || "");
+            const isXtream = /:\d+\/[a-zA-Z0-9_\-\.]+\/[a-zA-Z0-9_\-\.]+\/\d+/i.test(cleanUrl);
+            
+            if (detailStr.includes("HttpStatusCodeInvalid") || detailStr.includes("403") || detailStr.includes("401")) {
+              setPlayerError(
+                true,
+                "🛡️ สตรีมนี้บล็อก Proxy Cloud (แต่ดูได้ 100% ในแอปและ VLC)",
+                "เซิร์ฟเวอร์สตรีมต้นทางไม่อนุญาตให้เล่นผ่านเว็บ Cloud Proxy (HttpStatusCodeInvalid 403) เนื่องจากติดระบบ Anti-Restream / IP Check<br><br><span style='color: var(--success); font-weight: 600;'>💡 แต่เมื่อเปิดเล่นผ่านแอป Chillup บน Android หรือโปรแกรม VLC ที่เชื่อมต่อเน็ตบ้าน จะสามารถเล่นได้ตามปกติ</span>"
+              );
+            } else if (!isProxyPlaybackActive) {
               setPlayerError(true, "สตรีม MPEG-TS ไม่สามารถเชื่อมต่อตรงได้ (CORS)", "กดปุ่ม '⚡ เล่นผ่าน Proxy' ด้านล่างเพื่อส่งข้อมูลผ่านระบบข้าม CORS");
             } else {
-              setPlayerError(true, "เกิดข้อผิดพลาดในการถอดรหัส MPEG-TS", errDetail || "สัญญาณภาพไม่เสถียร");
+              setPlayerError(true, "เกิดข้อผิดพลาดในการถอดรหัส MPEG-TS", errDetail || "สัญญาณภาพไม่เสถียร หรือจำเป็นต้องเปิดผ่านแอปเครื่องเล่น");
             }
           });
           startDiagnosticsPoller();
