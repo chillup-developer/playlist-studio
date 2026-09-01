@@ -830,13 +830,32 @@
         </div>
 
         <!-- Search & Stats -->
-        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 14px;">
           <input type="text" id="searchChannel" placeholder="🔍 ค้นหาช่อง หรือ URL..." style="max-width: 300px; width: 100%;" oninput="filterChannels()">
-          <div style="font-size: 12px; color: var(--text-muted);">
-            ทั้งหมด: <b id="totalCountText" style="color: var(--text);">0</b> | 
-            กลุ่ม: <b id="groupCountText" style="color: var(--text);">0</b> | 
-            🟢 ใช้งานได้: <b id="aliveCountText" style="color: var(--success);">0</b> | 
-            🔴 เสีย: <b id="deadCountText" style="color: var(--danger);">0</b>
+          <div style="font-size: 12px; color: var(--text-muted); display: flex; align-items: center; flex-wrap: wrap; gap: 8px;">
+            <span>ทั้งหมด: <b id="totalCountText" style="color: var(--text);">0</b></span> | 
+            <span style="background: rgba(56, 189, 248, 0.12); padding: 2px 6px; border-radius: 4px; color: var(--primary); font-weight: 600;">☑ เลือกไว้: <b id="selectedCountText">0</b> ช่อง</span> | 
+            <span>กลุ่ม: <b id="groupCountText" style="color: var(--text);">0</b></span> | 
+            <span>🟢 ใช้ได้: <b id="aliveCountText" style="color: var(--success);">0</b></span> | 
+            <span>🔴 เสีย: <b id="deadCountText" style="color: var(--danger);">0</b></span> |
+            <span>📦 ขนาด: <b id="selectedSizeText" style="color: var(--text);">0 B</b></span>
+          </div>
+        </div>
+
+        <!-- Bulk Selection Action Bar -->
+        <div class="selection-toolbar" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; padding: 8px 12px; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.2); border-radius: 8px;">
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <span style="font-size: 12px; font-weight: 600; color: var(--text); margin-right: 4px;">เลือกช่องบันทึก:</span>
+            <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="selectAllChannels(true)" title="เลือก (ติ๊กถูก) ทุกช่องในเพลย์ลิสต์">✅ เลือกทั้งหมด</button>
+            <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="selectAllChannels(false)" title="ยกเลิกการเลือกทุกช่อง">⬜ ยกเลิกเลือก</button>
+            <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="selectCurrentGroupOnly()" title="เลือกเฉพาะช่องในกลุ่มที่กำลังดูอยู่">📁 เฉพาะกลุ่มนี้</button>
+            <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="selectAliveOnly()" title="เลือกเฉพาะช่องที่ตรวจแล้วใช้งานได้">🟢 เฉพาะที่ใช้ได้</button>
+            <button class="btn btn-secondary btn-sm" style="padding: 3px 8px; font-size: 11px;" onclick="invertSelection()" title="สลับการเลือก">🔄 สลับเลือก</button>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <button class="btn btn-danger btn-sm" style="padding: 3px 8px; font-size: 11px; background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.25); color: var(--danger);" onclick="deleteUnselectedChannels()" title="ลบช่องที่ไม่ได้ติ๊กถูกออกจากรายการทั้งหมด">🗑️ ลบช่องที่ไม่เลือก</button>
+            <button class="btn btn-danger btn-sm" style="padding: 3px 8px; font-size: 11px; background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.25); color: var(--danger);" onclick="deleteSelectedChannels()" title="ลบช่องที่ติ๊กถูกออกจากรายการ">🗑️ ลบช่องที่เลือก</button>
+            <span id="sizeWarningBadge" style="display: none; font-size: 11px; font-weight: bold; color: #ef4444; background: rgba(239, 68, 68, 0.15); padding: 3px 8px; border-radius: 4px;">⚠️ ขนาดเกิน 20MB!</span>
           </div>
         </div>
 
@@ -851,6 +870,9 @@
             <table>
               <thead>
                 <tr>
+                  <th style="width: 38px; text-align: center;">
+                    <input type="checkbox" id="masterSelectCheckbox" onchange="toggleMasterSelect(this.checked)" title="เลือก / ยกเลิกเลือกทั้งหมด" style="cursor: pointer; width: 16px; height: 16px; accent-color: var(--primary);">
+                  </th>
                   <th style="width: 48px; text-align: center;">#</th>
                   <th style="width: 44px; text-align: center;">โลโก้</th>
                   <th>ชื่อช่อง / URL</th>
@@ -861,7 +883,7 @@
               </thead>
               <tbody id="channelTableBody">
                 <tr>
-                  <td colspan="6" class="empty-placeholder">
+                  <td colspan="7" class="empty-placeholder">
                     ยังไม่มีช่องในเพลย์ลิสต์นี้ — กด <b>"+ เพิ่มช่อง"</b> หรือ <b>"📥 นำเข้า"</b> เพื่อเริ่มต้น
                   </td>
                 </tr>
@@ -2119,8 +2141,48 @@
       });
     }
 
+    function calculatePayloadSize(selectedOnly = true) {
+      const targetChannels = selectedOnly ? channels.filter(c => c.selected !== false) : channels;
+      const cleanChannels = targetChannels.map(c => {
+        const item = {
+          name: (c.name || "").trim(),
+          url: (c.url || "").trim(),
+          group: (c.group || "General").trim()
+        };
+        if (c.logo && c.logo.trim()) item.logo = c.logo.trim();
+        if (c.referer && c.referer.trim()) item.referer = c.referer.trim();
+        if ((c.userAgent || c.user_agent) && (c.userAgent || c.user_agent).trim()) {
+          item.userAgent = (c.userAgent || c.user_agent).trim();
+        }
+        if (c.author && c.author.trim()) item.author = c.author.trim();
+        if (c.isImport) item.isImport = true;
+        return item;
+      });
+      const dummyPayload = {
+        userId: (currentUser && currentUser.id) ? currentUser.id : "user",
+        name: document.getElementById("plName")?.value || "Playlist",
+        author: document.getElementById("plAuthor")?.value || "",
+        image: document.getElementById("plImage")?.value || "",
+        info: document.getElementById("plInfo")?.value || "",
+        contact: document.getElementById("plContact")?.value || "",
+        url: document.getElementById("plUrl")?.value || "",
+        groupCovers: groupCovers || {},
+        channels: cleanChannels
+      };
+      return new Blob([JSON.stringify(dummyPayload)]).size;
+    }
+
+    function formatBytes(bytes) {
+      if (!bytes || bytes <= 0) return "0 B";
+      const k = 1024;
+      const sizes = ["B", "KB", "MB", "GB"];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+    }
+
     function updateStats() {
       const total = channels.length;
+      const selected = channels.filter(c => c.selected !== false).length;
       const alive = channels.filter(c => c.status === "alive").length;
       const dead = channels.filter(c => c.status === "dead").length;
       const nested = channels.filter(c => c.isImport || isPotentialNestedPlaylist(c.url)).length;
@@ -2131,6 +2193,9 @@
       const totalEl = document.getElementById("totalCountText");
       if (totalEl) totalEl.textContent = total;
 
+      const selectedEl = document.getElementById("selectedCountText");
+      if (selectedEl) selectedEl.textContent = selected;
+
       const groupEl = document.getElementById("groupCountText");
       if (groupEl) groupEl.textContent = groups.size;
 
@@ -2139,6 +2204,41 @@
 
       const deadEl = document.getElementById("deadCountText");
       if (deadEl) deadEl.textContent = dead;
+
+      // Size calculation and warning against Cloudflare KV 25MB limit
+      const bytes = calculatePayloadSize(true);
+      const sizeText = formatBytes(bytes);
+      const sizeEl = document.getElementById("selectedSizeText");
+      const warningBadge = document.getElementById("sizeWarningBadge");
+
+      if (sizeEl) {
+        sizeEl.textContent = sizeText;
+        if (bytes > 20 * 1024 * 1024) {
+          sizeEl.style.color = "var(--danger)";
+          sizeEl.style.fontWeight = "bold";
+        } else {
+          sizeEl.style.color = "var(--text)";
+          sizeEl.style.fontWeight = "normal";
+        }
+      }
+
+      if (warningBadge) {
+        if (bytes > 22 * 1024 * 1024) {
+          warningBadge.style.display = "inline-block";
+          warningBadge.textContent = "⚠️ ขนาด " + sizeText + " ใกล้/เกิน 25MB (ข้อจำกัดระบบ)! กรุณาลดจำนวนช่องที่เลือก";
+        } else {
+          warningBadge.style.display = "none";
+        }
+      }
+
+      // Update Save button label with selected count
+      const btnSave = document.getElementById("btnSavePlaylist");
+      if (btnSave && !btnSave.disabled) {
+        const isUpdating = !!(currentEditingPlaylistId && currentEditingRedeemCode);
+        btnSave.textContent = isUpdating 
+          ? ("💾 อัปเดตเพลย์ลิสต์ (" + selected + " ช่อง)")
+          : ("💾 บันทึก & รับรหัส (" + selected + " ช่อง)");
+      }
 
       // STB Playlist Export Button Safeguards
       const isStb = isStbPlaylist();
@@ -2155,10 +2255,10 @@
         } else {
           btnM3u.style.opacity = "1";
           btnM3u.style.cursor = "pointer";
-          btnM3u.title = "ส่งออกไฟล์ M3U";
+          btnM3u.title = "ส่งออกไฟล์ M3U (" + selected + " ช่อง)";
           btnW3u.style.opacity = "1";
           btnW3u.style.cursor = "pointer";
-          btnW3u.title = "ส่งออกไฟล์ W3U";
+          btnW3u.title = "ส่งออกไฟล์ W3U (" + selected + " ช่อง)";
         }
       }
 
@@ -2171,6 +2271,131 @@
         } else {
           btnExpand.style.display = "none";
         }
+      }
+    }
+
+    function toggleChannelSelect(origIdx, isChecked) {
+      if (channels[origIdx]) {
+        channels[origIdx].selected = !!isChecked;
+        updateStats();
+        // Update visual dimming of the row immediately
+        const row = document.querySelector('input.ch-select-box[data-idx="' + origIdx + '"]')?.closest("tr");
+        if (row) {
+          if (isChecked) {
+            row.style.opacity = "1";
+            row.style.background = "";
+          } else {
+            row.style.opacity = "0.5";
+            row.style.background = "rgba(0,0,0,0.02)";
+          }
+        }
+        updateMasterCheckboxState();
+      }
+    }
+
+    function toggleMasterSelect(isChecked) {
+      const filter = document.getElementById("searchChannel").value.toLowerCase().trim();
+      channels.forEach(ch => {
+        const matchGroup = activeGroupFilter === "ALL" || (ch.group || "General") === activeGroupFilter;
+        const matchSearch = !filter || 
+          (ch.name && ch.name.toLowerCase().includes(filter)) || 
+          (ch.url && ch.url.toLowerCase().includes(filter)) ||
+          (ch.group && ch.group.toLowerCase().includes(filter));
+        if (matchGroup && matchSearch) {
+          ch.selected = !!isChecked;
+        }
+      });
+      renderChannels();
+    }
+
+    function updateMasterCheckboxState(filteredList) {
+      const masterCb = document.getElementById("masterSelectCheckbox");
+      if (!masterCb) return;
+      const list = filteredList || channels.filter(ch => {
+        const filter = document.getElementById("searchChannel")?.value.toLowerCase().trim() || "";
+        const matchGroup = activeGroupFilter === "ALL" || (ch.group || "General") === activeGroupFilter;
+        const matchSearch = !filter || 
+          (ch.name && ch.name.toLowerCase().includes(filter)) || 
+          (ch.url && ch.url.toLowerCase().includes(filter)) ||
+          (ch.group && ch.group.toLowerCase().includes(filter));
+        return matchGroup && matchSearch;
+      });
+
+      if (list.length === 0) {
+        masterCb.checked = false;
+        masterCb.indeterminate = false;
+        return;
+      }
+
+      const selectedCount = list.filter(c => c.selected !== false).length;
+      if (selectedCount === 0) {
+        masterCb.checked = false;
+        masterCb.indeterminate = false;
+      } else if (selectedCount === list.length) {
+        masterCb.checked = true;
+        masterCb.indeterminate = false;
+      } else {
+        masterCb.checked = false;
+        masterCb.indeterminate = true;
+      }
+    }
+
+    function selectAllChannels(isChecked) {
+      channels.forEach(c => { c.selected = !!isChecked; });
+      renderChannels();
+    }
+
+    function selectCurrentGroupOnly() {
+      if (activeGroupFilter === "ALL") {
+        channels.forEach(c => { c.selected = true; });
+      } else {
+        channels.forEach(c => {
+          c.selected = ((c.group || "General") === activeGroupFilter);
+        });
+      }
+      renderChannels();
+    }
+
+    function selectAliveOnly() {
+      const aliveCount = channels.filter(c => c.status === "alive").length;
+      if (aliveCount === 0) {
+        alert("ยังไม่มีช่องที่ตรวจแล้วใช้งานได้ 🟢\n(กรุณากดปุ่ม '⚡ ตรวจสอบลิงก์' ก่อน)");
+        return;
+      }
+      channels.forEach(c => {
+        c.selected = (c.status === "alive");
+      });
+      renderChannels();
+    }
+
+    function invertSelection() {
+      channels.forEach(c => {
+        c.selected = !(c.selected !== false);
+      });
+      renderChannels();
+    }
+
+    function deleteUnselectedChannels() {
+      const unselectedCount = channels.filter(c => c.selected === false).length;
+      if (unselectedCount === 0) {
+        alert("ไม่มีช่องรายการที่ไม่ได้เลือก");
+        return;
+      }
+      if (confirm("คุณต้องการลบช่องที่ไม่ได้เลือก (ไม่ได้ติ๊กถูก) จำนวน " + unselectedCount + " ช่อง ออกจากเพลย์ลิสต์ใช่หรือไม่?")) {
+        channels = channels.filter(c => c.selected !== false);
+        renderChannels();
+      }
+    }
+
+    function deleteSelectedChannels() {
+      const selectedCount = channels.filter(c => c.selected !== false).length;
+      if (selectedCount === 0) {
+        alert("ไม่มีช่องรายการที่ถูกเลือก");
+        return;
+      }
+      if (confirm("คุณต้องการลบช่องที่ถูกเลือก (ติ๊กถูก) จำนวน " + selectedCount + " ช่อง ออกจากเพลย์ลิสต์ใช่หรือไม่?")) {
+        channels = channels.filter(c => c.selected === false);
+        renderChannels();
       }
     }
 
@@ -2244,12 +2469,13 @@
       updateStats();
       renderGroupPills();
       updateCheckButtonLabel();
+      updateMasterCheckboxState(filtered);
 
       const totalItems = filtered.length;
       const paginationBar = document.getElementById("channelPaginationBar");
 
       if (totalItems === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-placeholder">' + (channels.length === 0 ? 'ยังไม่มีช่องในเพลย์ลิสต์นี้ — กด <b>"+ เพิ่มช่อง"</b> หรือ <b>"📥 นำเข้า"</b> เพื่อเริ่มต้น' : 'ไม่พบช่องรายการที่ตรงกับการค้นหา') + '</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-placeholder">' + (channels.length === 0 ? 'ยังไม่มีช่องในเพลย์ลิสต์นี้ — กด <b>"+ เพิ่มช่อง"</b> หรือ <b>"📥 นำเข้า"</b> เพื่อเริ่มต้น' : 'ไม่พบช่องรายการที่ตรงกับการค้นหา') + '</td></tr>';
         if (paginationBar) paginationBar.style.display = "none";
         return;
       }
@@ -2303,6 +2529,9 @@
       let html = "";
       pageItems.forEach((ch) => {
         const origIdx = ch._origIdx;
+        const isChecked = ch.selected !== false;
+        const rowDimStyle = isChecked ? '' : 'style="opacity: 0.5; background: rgba(0,0,0,0.02);"';
+
         let statusBadge = '<span class="badge-status status-none">⚪ ยังไม่ตรวจ</span>';
         if (ch.status === "alive") {
           statusBadge = '<span class="badge-status status-ok">🟢 ใช้งานได้</span>';
@@ -2322,7 +2551,10 @@
         const expandBtn = isNested ? 
           '<button class="btn btn-primary btn-icon btn-sm" onclick="expandSingleSubPlaylist(' + origIdx + ')" title="📥 ดึงช่องทั้งหมดจากลิงก์นำเข้านี้ออกมา" style="background: var(--primary); color: #000;">📥</button>' : '';
 
-        html += '<tr>' +
+        html += '<tr ' + rowDimStyle + '>' +
+          '<td style="text-align: center;">' +
+            '<input type="checkbox" class="ch-select-box" data-idx="' + origIdx + '" ' + (isChecked ? 'checked' : '') + ' onchange="toggleChannelSelect(' + origIdx + ', this.checked)" style="cursor: pointer; width: 16px; height: 16px; accent-color: var(--primary);">' +
+          '</td>' +
           '<td style="text-align: center; color: var(--text-faint); font-weight: 500;">' + (origIdx + 1) + '</td>' +
           '<td style="text-align: center;">' + logoImg + '</td>' +
           '<td>' +
@@ -4943,6 +5175,12 @@
         return;
       }
 
+      const selectedChannels = channels.filter(c => c.selected !== false);
+      if (selectedChannels.length === 0) {
+        alert("⚠️ คุณยังไม่ได้เลือกช่องรายการที่จะส่งออก\n\nกรุณาทำเครื่องหมายถูก (☑) ที่ช่องรายการที่ต้องการ หรือกดปุ่ม \"✅ เลือกทั้งหมด\"");
+        return;
+      }
+
       // STB / Stalker Playlist Safeguard: Cannot be exported as static M3U/W3U files
       if (isStbPlaylist()) {
         alert("🚫 ไม่สามารถส่งออกเป็นไฟล์ " + format.toUpperCase() + " ได้:\n\n" +
@@ -4968,7 +5206,7 @@
         if (url) content += " url=\"" + url + "\"";
         content += "\n";
 
-        channels.forEach(ch => {
+        selectedChannels.forEach(ch => {
           content += "#EXTINF:-1 tvg-logo=\"" + (ch.logo || "") + "\" group-title=\"" + (ch.group || "General") + "\"," + (ch.name || "Channel") + "\n";
           if (ch.userAgent) content += "#EXTVLCOPT:http-user-agent=" + ch.userAgent + "\n";
           if (ch.referer) content += "#EXTHTTP:{\"Referer\":\"" + ch.referer + "\"}\n";
@@ -4977,7 +5215,7 @@
         downloadBlob(content, plName + ".m3u", "text/plain;charset=utf-8");
       } else if (format === "w3u") {
         const groupsMap = {};
-        channels.forEach(ch => {
+        selectedChannels.forEach(ch => {
           const g = ch.group || "General";
           if (!groupsMap[g]) groupsMap[g] = [];
           groupsMap[g].push({
@@ -5183,6 +5421,13 @@
         alert("กรุณาเพิ่มช่องรายการอย่างน้อย 1 ช่องก่อนบันทึก");
         return;
       }
+
+      const selectedChannels = channels.filter(c => c.selected !== false);
+      if (selectedChannels.length === 0) {
+        alert("⚠️ คุณยังไม่ได้เลือกช่องรายการที่จะบันทึก\n\nกรุณาทำเครื่องหมายถูก (☑) ที่ช่องรายการที่ต้องการ หรือกดปุ่ม \"✅ เลือกทั้งหมด\"");
+        return;
+      }
+
       if (!currentUser || !currentUser.id) {
         alert("กรุณาเข้าสู่ระบบก่อนบันทึก");
         showLoginScreen();
@@ -5197,38 +5442,69 @@
       const contact = document.getElementById("plContact").value.trim();
       const url = document.getElementById("plUrl").value.trim();
 
+      // Clean channel objects to minimize payload size and avoid KV limit
+      const cleanChannels = selectedChannels.map(ch => {
+        const item = {
+          name: (ch.name || "").trim(),
+          url: (ch.url || "").trim(),
+          group: (ch.group || "General").trim()
+        };
+        if (ch.logo && ch.logo.trim()) item.logo = ch.logo.trim();
+        if (ch.referer && ch.referer.trim()) item.referer = ch.referer.trim();
+        if ((ch.userAgent || ch.user_agent) && (ch.userAgent || ch.user_agent).trim()) {
+          item.userAgent = (ch.userAgent || ch.user_agent).trim();
+        }
+        if (ch.author && ch.author.trim()) item.author = ch.author.trim();
+        if (ch.isImport) item.isImport = true;
+        return item;
+      });
+
       const isUpdating = !!(currentEditingPlaylistId && currentEditingRedeemCode);
+
+      const payload = {
+        userId: currentUser.id,
+        name: plName,
+        author: author,
+        redeemCode: customCode || (isUpdating ? currentEditingRedeemCode : ""),
+        image: image,
+        info: info,
+        contact: contact,
+        url: url,
+        groupCovers: groupCovers,
+        channels: cleanChannels
+      };
+
+      if (isUpdating) {
+        payload.id = currentEditingPlaylistId;
+        payload.oldRedeemCode = currentEditingRedeemCode;
+        payload.createdAt = currentEditingCreatedAt;
+        payload.usedCount = currentEditingUsedCount;
+      }
+
+      // Check Payload Size Limit (Cloudflare KV limit is 25MB)
+      const payloadStr = JSON.stringify(payload);
+      const payloadBytes = new Blob([payloadStr]).size;
+      const payloadMB = (payloadBytes / (1024 * 1024)).toFixed(2);
+
+      if (payloadBytes > 24 * 1024 * 1024) {
+        alert("⚠️ ขนาดข้อมูลที่เลือกบันทึกมีขนาดใหญ่เกินไป (" + payloadMB + " MB) เกินขีดจำกัด Cloudflare KV (25 MB)\n\n" +
+              "👉 วิธีแก้ไข:\n" +
+              "1. ใช้ปุ่มยกเลิกเลือก หรือเลือกเฉพาะกลุ่มที่ต้องการบันทึก\n" +
+              "2. ลดจำนวนช่องที่ติ๊กถูกให้อยู่ในขนาดไม่เกิน 20 MB แล้วกดบันทึกใหม่อีกครั้ง");
+        return;
+      }
+
       const btnSave = document.getElementById("btnSavePlaylist");
       if (btnSave) {
         btnSave.disabled = true;
-        btnSave.textContent = "⏳ กำลังบันทึก...";
+        btnSave.textContent = "⏳ กำลังบันทึก (" + cleanChannels.length + " ช่อง)...";
       }
 
       try {
-        const payload = {
-          userId: currentUser.id,
-          name: plName,
-          author: author,
-          redeemCode: customCode || (isUpdating ? currentEditingRedeemCode : ""),
-          image: image,
-          info: info,
-          contact: contact,
-          url: url,
-          groupCovers: groupCovers,
-          channels: channels
-        };
-
-        if (isUpdating) {
-          payload.id = currentEditingPlaylistId;
-          payload.oldRedeemCode = currentEditingRedeemCode;
-          payload.createdAt = currentEditingCreatedAt;
-          payload.usedCount = currentEditingUsedCount;
-        }
-
         const resp = await fetch(HUB_SERVER + "/api/user/save-playlist", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload)
+          body: payloadStr
         });
 
         const res = await resp.json();
@@ -5267,7 +5543,7 @@
       } finally {
         if (btnSave) {
           btnSave.disabled = false;
-          btnSave.textContent = isUpdating ? "💾 อัปเดตเพลย์ลิสต์เดิม" : "💾 บันทึก & รับรหัส";
+          updateStats();
         }
       }
     }
@@ -5353,7 +5629,8 @@
             logo: ch.logo || ch.image || "",
             referer: ch.referer || "",
             userAgent: ch.userAgent || ch.user_agent || "",
-            status: "unknown"
+            status: "none",
+            selected: true
           }));
 
           // Populate playlist metadata 100% (Author loads from playlist exactly)
