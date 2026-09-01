@@ -823,8 +823,8 @@
             <button class="btn btn-danger btn-sm" onclick="clearAllData()" style="background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.3); color: var(--danger);" title="ล้างข้อมูลทั้งหมดในฟอร์มและตาราง">🧹 ล้างข้อมูล</button>
           </div>
           <div class="action-group">
-            <button class="btn btn-ghost btn-sm" onclick="exportFile('m3u')">⬇ M3U</button>
-            <button class="btn btn-ghost btn-sm" onclick="exportFile('w3u')">⬇ W3U</button>
+            <button class="btn btn-ghost btn-sm" id="btnExportM3u" onclick="exportFile('m3u')">⬇ M3U</button>
+            <button class="btn btn-ghost btn-sm" id="btnExportW3u" onclick="exportFile('w3u')">⬇ W3U</button>
             <button class="btn btn-success btn-sm" id="btnSavePlaylist" onclick="saveAndGenerateRedeemCode()">💾 บันทึก & รับรหัส</button>
           </div>
         </div>
@@ -2111,6 +2111,14 @@
       document.getElementById("groupSettingsModal").style.display = "none";
     }
 
+    function isStbPlaylist() {
+      if (!Array.isArray(channels) || channels.length === 0) return false;
+      return channels.some(c => {
+        const u = (c && c.url ? c.url : "").trim().toLowerCase();
+        return u.startsWith("stalker://") || u.startsWith("stb://");
+      });
+    }
+
     function updateStats() {
       const total = channels.length;
       const alive = channels.filter(c => c.status === "alive").length;
@@ -2131,6 +2139,28 @@
 
       const deadEl = document.getElementById("deadCountText");
       if (deadEl) deadEl.textContent = dead;
+
+      // STB Playlist Export Button Safeguards
+      const isStb = isStbPlaylist();
+      const btnM3u = document.getElementById("btnExportM3u");
+      const btnW3u = document.getElementById("btnExportW3u");
+      if (btnM3u && btnW3u) {
+        if (isStb) {
+          btnM3u.style.opacity = "0.45";
+          btnM3u.style.cursor = "not-allowed";
+          btnM3u.title = "🚫 เพลย์ลิสต์ STB (MAC) ไม่สามารถส่งออกเป็นไฟล์ได้ (กรุณากด 'บันทึก & รับรหัส' เพื่อเปิดดูในแอป)";
+          btnW3u.style.opacity = "0.45";
+          btnW3u.style.cursor = "not-allowed";
+          btnW3u.title = "🚫 เพลย์ลิสต์ STB (MAC) ไม่สามารถส่งออกเป็นไฟล์ได้ (กรุณากด 'บันทึก & รับรหัส' เพื่อเปิดดูในแอป)";
+        } else {
+          btnM3u.style.opacity = "1";
+          btnM3u.style.cursor = "pointer";
+          btnM3u.title = "ส่งออกไฟล์ M3U";
+          btnW3u.style.opacity = "1";
+          btnW3u.style.cursor = "pointer";
+          btnW3u.title = "ส่งออกไฟล์ W3U";
+        }
+      }
 
       const btnExpand = document.getElementById("btnExpandSubPlaylists");
       const nestedSubCount = document.getElementById("nestedSubCount");
@@ -4912,6 +4942,17 @@
         alert("ไม่มีช่องรายการให้ส่งออก");
         return;
       }
+
+      // STB / Stalker Playlist Safeguard: Cannot be exported as static M3U/W3U files
+      if (isStbPlaylist()) {
+        alert("🚫 ไม่สามารถส่งออกเป็นไฟล์ " + format.toUpperCase() + " ได้:\n\n" +
+              "• เพลย์ลิสต์นี้ประกอบด้วยช่องรายการจากกล่อง STB / Stalker Portal (MAC Address)\n" +
+              "• ช่องรายการประเภทนี้ต้องใช้ระบบ Handshake ตรวจสอบสิทธิ์และดึงโทเค็นสดผ่านแอปโดยตรง หากดาวน์โหลดเป็นไฟล์ไปเปิดในโปรแกรมภายนอกจะไม่สามารถเล่นได้\n\n" +
+              "👉 วิธีใช้งานที่ถูกต้อง:\n" +
+              "กรุณากดปุ่ม \"💾 บันทึก & รับรหัส (Save & Redeem)\" เพื่อสร้างรหัส Redeem สำหรับนำไปเปิดดูในแอป Chillup IPTV ได้ 100%");
+        return;
+      }
+
       const plName = document.getElementById("plName").value.trim() || "Chillup_Playlist";
       const author = document.getElementById("plAuthor").value.trim() || "Chillup Studio";
       const image = document.getElementById("plImage").value.trim();
