@@ -3290,10 +3290,11 @@
       const streamUrlToPlay = forceProxy ? getStreamProxyUrl(cleanUrl, referer) : cleanUrl;
       const lower = cleanUrl.toLowerCase();
       const isHls = lower.includes(".m3u8") || lower.includes("/hls/") || lower.includes("playlist.m3u8");
-      const isMpegTs = lower.includes(".ts") || lower.endsWith("/ts") || lower.includes("output=ts") || lower.includes(".flv");
+      const isXtreamLive = /:\d+\/[a-zA-Z0-9_\-\.]+\/[a-zA-Z0-9_\-\.]+\/\d+$/i.test(cleanUrl);
+      const isMpegTs = lower.includes(".ts") || lower.endsWith("/ts") || lower.includes("output=ts") || lower.includes(".flv") || isXtreamLive;
 
       if (formatBadge) {
-        formatBadge.textContent = isHls ? "HLS (.m3u8)" : (isMpegTs ? "MPEG-TS (.ts)" : (lower.endsWith(".mp4") ? "MP4 Video" : "Live Stream"));
+        formatBadge.textContent = isHls ? "HLS (.m3u8)" : (isMpegTs ? (isXtreamLive ? "Xtream Live (TS)" : "MPEG-TS (.ts)") : (lower.endsWith(".mp4") ? "MP4 Video" : "Live Stream"));
       }
 
       setPlayerLoading(true, "กำลังโหลดและประมวลผลสตรีม...");
