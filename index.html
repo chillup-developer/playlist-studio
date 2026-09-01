@@ -965,6 +965,152 @@
     </div>
   </div>
 
+  
+  <!-- ========================================== -->
+  <!-- 📺 MODAL: UNIVERSAL STREAM PLAYER          -->
+  <!-- ========================================== -->
+  <div class="modal-backdrop" id="streamPlayerModal" style="display: none; z-index: 10000; position: fixed; inset: 0; background: rgba(0,0,0,0.85); align-items: center; justify-content: center; backdrop-filter: blur(4px);">
+    <div class="modal-box" style="max-width: 860px; width: 95vw; max-height: 94vh; padding: 0; overflow-y: auto; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);">
+      
+      <!-- Player Header Bar -->
+      <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--border); background: var(--table-header); position: sticky; top: 0; z-index: 20;">
+        <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+          <div id="playerModalLogo" style="width: 36px; height: 36px; border-radius: 6px; overflow: hidden; background: var(--surface-subtle); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; border: 1px solid var(--border);">
+            📺
+          </div>
+          <div style="min-width: 0;">
+            <div style="font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span id="playerModalTitle" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 360px;">Stream Player</span>
+              <span id="playerModalGroup" class="badge" style="font-size: 11px; background: var(--surface-subtle); border: 1px solid var(--border);">General</span>
+              <span id="playerFormatBadge" class="badge" style="font-size: 10px; background: rgba(56, 189, 248, 0.15); color: var(--primary); font-weight: 600;">HLS</span>
+            </div>
+            <div id="playerModalAuthor" style="font-size: 11px; color: var(--text-muted); margin-top: 1px;"></div>
+          </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button type="button" class="btn btn-ghost btn-icon btn-sm" onclick="togglePlayerPip()" title="เล่นแบบหน้าต่างลอย (Picture-in-Picture)" style="font-size: 14px;">⧉</button>
+          <button type="button" class="btn btn-ghost btn-icon btn-sm" onclick="togglePlayerFullscreen()" title="เต็มจอ (Fullscreen)" style="font-size: 14px;">⛶</button>
+          <button type="button" class="btn btn-ghost btn-icon btn-sm" onclick="closeStreamPlayer()" title="ปิดเครื่องเล่น" style="font-size: 16px; font-weight: bold;">✕</button>
+        </div>
+      </div>
+
+      <!-- Video Display Stage -->
+      <div class="player-stage-container" style="position: relative; width: 100%; background: #000000; aspect-ratio: 16/9; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+        
+        <video id="studioVideoPlayer" playsinline controls style="width: 100%; height: 100%; object-fit: contain; background: #000;"></video>
+
+        <!-- Loading Overlay -->
+        <div id="playerLoadingOverlay" style="position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; align-items: center; justify-content: center; gap: 12px; z-index: 10; color: #fff;">
+          <div class="player-spinner"></div>
+          <div id="playerLoadingText" style="font-size: 13px; font-weight: 500; letter-spacing: 0.02em;">กำลังเชื่อมต่อสตรีม...</div>
+        </div>
+
+        <!-- Error Overlay -->
+        <div id="playerErrorOverlay" style="position: absolute; inset: 0; background: rgba(15, 23, 42, 0.95); display: none; flex-direction: column; align-items: center; justify-content: center; padding: 24px; text-align: center; gap: 10px; z-index: 11;">
+          <div style="font-size: 32px;">⚠️</div>
+          <div id="playerErrorTitle" style="font-size: 15px; font-weight: 700; color: var(--danger);">ไม่สามารถเล่นสตรีมนี้ได้ในเบราว์เซอร์</div>
+          <div id="playerErrorDesc" style="font-size: 12px; color: var(--text-muted); max-width: 500px; line-height: 1.5;">
+            อาจเกิดจากสตรีมปิดชั่วคราว มีการบล็อก CORS หรือเบราว์เซอร์บล็อก Mixed Content (HTTP บน HTTPS)
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; justify-content: center;">
+            <button type="button" class="btn btn-secondary btn-sm" onclick="retryCurrentPlayerStream()">🔄 ลองใหม่</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="openStreamInNewTab()">🌐 เปิดลิงก์ตรง</button>
+            <button type="button" class="btn btn-danger btn-sm" onclick="markCurrentPlayerStatus(false)">🔴 มาร์กว่าเสีย</button>
+          </div>
+        </div>
+
+        <!-- Live Badge -->
+        <div id="playerLiveBadge" style="position: absolute; top: 12px; left: 12px; background: rgba(239, 68, 68, 0.9); color: #fff; font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 4px; z-index: 5; pointer-events: none; display: flex; align-items: center; gap: 4px;">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: #fff; display: inline-block;"></span>
+          LIVE
+        </div>
+      </div>
+
+      <!-- Quick Playback & Navigation Controls -->
+      <div style="padding: 10px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; background: var(--surface-subtle);">
+        <div style="display: flex; align-items: center; gap: 6px;">
+          <button type="button" class="btn btn-secondary btn-sm" id="btnPlayerPrevCh" onclick="playerNavigateChannel(-1)" title="ช่องก่อนหน้า (Arrow Left)">⏮️ ก่อนหน้า</button>
+          <button type="button" class="btn btn-primary btn-sm" id="btnPlayerReload" onclick="retryCurrentPlayerStream()" title="โหลดสตรีมใหม่">🔄 รีโหลด</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="btnPlayerNextCh" onclick="playerNavigateChannel(1)" title="ช่องถัดไป (Arrow Right)">ถัดไป ⏭️</button>
+          <span id="playerChannelIndexBadge" style="font-size: 11px; color: var(--text-faint); margin-left: 4px;"></span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <!-- Quality Selector -->
+          <div style="display: flex; align-items: center; gap: 6px; font-size: 12px;">
+            <span style="color: var(--text-muted);">คุณภาพ:</span>
+            <select id="playerQualitySelect" style="padding: 4px 8px; font-size: 12px; border-radius: 6px; background: var(--surface); color: var(--text); border: 1px solid var(--border);" onchange="changePlayerQuality(this.value)">
+              <option value="-1">อัตโนมัติ (Auto)</option>
+            </select>
+          </div>
+
+          <!-- Audio Track Selector (if available) -->
+          <div id="playerAudioTrackWrapper" style="display: none; align-items: center; gap: 6px; font-size: 12px;">
+            <span style="color: var(--text-muted);">เสียง:</span>
+            <select id="playerAudioTrackSelect" style="padding: 4px 8px; font-size: 12px; border-radius: 6px; background: var(--surface); color: var(--text); border: 1px solid var(--border);" onchange="changePlayerAudioTrack(this.value)">
+              <option value="-1">ค่าเริ่มต้น (Default)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- URL & Diagnostic Inspector -->
+      <div style="padding: 14px 18px; display: flex; flex-direction: column; gap: 12px;">
+        
+        <!-- Stream URL Input -->
+        <div class="form-group" style="margin: 0;">
+          <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+            <span style="font-weight: 600;">URL สตรีมที่กำลังทดสอบ (Stream URL):</span>
+            <span style="font-size: 11px; color: var(--text-faint);">สามารถแก้ไข URL แล้วกด "เล่น URL นี้" เพื่อทดสอบได้ทันที</span>
+          </label>
+          <div style="display: flex; gap: 8px;">
+            <input type="text" id="playerUrlInput" style="flex: 1; font-family: 'JetBrains Mono', monospace; font-size: 12px;" placeholder="https://domain.com/live.m3u8">
+            <button type="button" class="btn btn-primary btn-sm" onclick="playCustomUrlFromInput()">▶️ เล่น URL นี้</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="copyPlayerStreamUrl()" title="คัดลอก URL">📋 คัดลอก</button>
+          </div>
+        </div>
+
+        <!-- Real-time Diagnostic Bar -->
+        <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; font-size: 11px;">
+          <div>
+            <div style="color: var(--text-faint);">สถานะการเล่น:</div>
+            <div id="diagStatus" style="font-weight: 700; color: var(--warning); margin-top: 2px;">กำลังเริ่ม...</div>
+          </div>
+          <div>
+            <div style="color: var(--text-faint);">ความละเอียด (Resolution):</div>
+            <div id="diagResolution" style="font-weight: 600; color: var(--text); margin-top: 2px;">-</div>
+          </div>
+          <div>
+            <div style="color: var(--text-faint);">บิตเรต (Bitrate):</div>
+            <div id="diagBitrate" style="font-weight: 600; color: var(--text); margin-top: 2px;">-</div>
+          </div>
+          <div>
+            <div style="color: var(--text-faint);">บัฟเฟอร์ (Buffer):</div>
+            <div id="diagBuffer" style="font-weight: 600; color: var(--text); margin-top: 2px;">0.0s</div>
+          </div>
+          <div>
+            <div style="color: var(--text-faint);">เอนจิน (Engine):</div>
+            <div id="diagEngine" style="font-weight: 600; color: var(--primary); margin-top: 2px;">HLS.js</div>
+          </div>
+        </div>
+
+        <!-- Action Footer -->
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 2px;">
+          <div style="display: flex; gap: 6px;">
+            <button type="button" class="btn btn-success btn-sm" onclick="markCurrentPlayerStatus(true)">🟢 มาร์กว่าใช้งานได้</button>
+            <button type="button" class="btn btn-danger btn-sm" onclick="markCurrentPlayerStatus(false)">🔴 มาร์กว่าเสีย</button>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnPlayerEditChannel" onclick="editChannelFromPlayer()">✏️ แก้ไขช่องนี้</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick="closeStreamPlayer()">ปิดหน้าต่าง</button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
   <!-- MODAL: QUICK SELECT / CHANGE GROUP FOR CHANNEL -->
   <div class="modal-backdrop" id="quickGroupModal">
     <div class="modal-box" style="max-width: 460px;">
@@ -2380,6 +2526,518 @@
         renderChannels();
       }
     }
+
+    
+    // =========================================================================
+    // 📺 STREAM PLAYER ENGINE & REAL-TIME DIAGNOSTICS (HLS.js & Native)
+    // =========================================================================
+    let hlsInstance = null;
+    let currentPlayerChannelIndex = -1;
+    let playerDiagInterval = null;
+
+    function openCustomUrlPlayer() {
+      if (channels && channels.length > 0) {
+        const startIdx = activeGroupFilter === "ALL" ? 0 : channels.findIndex(c => (c.group || "General") === activeGroupFilter);
+        openStreamPlayer(startIdx >= 0 ? startIdx : 0);
+      } else {
+        openStreamPlayerWithData({
+          name: "Custom Stream Player",
+          url: "",
+          group: "Test Player",
+          logo: "",
+          author: "",
+          index: -1
+        });
+      }
+    }
+
+    function openStreamPlayer(idx) {
+      if (!channels || idx < 0 || idx >= channels.length) return;
+      const ch = channels[idx];
+      openStreamPlayerWithData({
+        name: ch.name || ("Channel " + (idx + 1)),
+        url: ch.url || "",
+        group: ch.group || "General",
+        logo: ch.logo || "",
+        author: ch.author || "",
+        index: idx
+      });
+    }
+
+    function testModalStreamUrl() {
+      const url = (document.getElementById("inputChUrl").value || "").trim();
+      const name = (document.getElementById("inputChName").value || "Test Channel").trim();
+      const group = (document.getElementById("inputChGroup").value || "General").trim();
+      const logo = (document.getElementById("inputChLogo").value || "").trim();
+      if (!url) {
+        alert("กรุณาใส่ URL สตรีมก่อนทดสอบ");
+        return;
+      }
+      openStreamPlayerWithData({
+        name: name,
+        url: url,
+        group: group,
+        logo: logo,
+        author: "",
+        index: typeof editingIndex !== "undefined" ? editingIndex : -1
+      });
+    }
+
+    function openStreamPlayerWithData(data) {
+      currentPlayerChannelIndex = (data && data.index !== undefined) ? data.index : -1;
+      
+      const modal = document.getElementById("streamPlayerModal");
+      if (!modal) {
+        console.error("Stream player modal element not found!");
+        return;
+      }
+      modal.style.display = "flex";
+
+      // Setup UI Titles & Badges
+      const titleEl = document.getElementById("playerModalTitle");
+      if (titleEl) titleEl.textContent = data.name || "Stream Player";
+
+      const groupEl = document.getElementById("playerModalGroup");
+      if (groupEl) groupEl.textContent = data.group || "General";
+
+      const authorEl = document.getElementById("playerModalAuthor");
+      if (authorEl) {
+        authorEl.textContent = data.author ? ("👤 " + data.author) : "";
+        authorEl.style.display = data.author ? "block" : "none";
+      }
+
+      const logoEl = document.getElementById("playerModalLogo");
+      if (logoEl) {
+        if (data.logo) {
+          logoEl.innerHTML = '<img src="' + escapeHtml(data.logo) + '" style="width:100%; height:100%; object-fit:cover;" onerror="this.onerror=null; this.parentElement.innerHTML=\'📺\';">';
+        } else {
+          logoEl.textContent = "📺";
+        }
+      }
+
+      const urlInput = document.getElementById("playerUrlInput");
+      if (urlInput) urlInput.value = data.url || "";
+
+      // Channel Index & Navigation info
+      const idxBadge = document.getElementById("playerChannelIndexBadge");
+      const prevBtn = document.getElementById("btnPlayerPrevCh");
+      const nextBtn = document.getElementById("btnPlayerNextCh");
+      const editBtn = document.getElementById("btnPlayerEditChannel");
+
+      if (channels && currentPlayerChannelIndex >= 0 && currentPlayerChannelIndex < channels.length) {
+        if (idxBadge) idxBadge.textContent = "ช่องที่ " + (currentPlayerChannelIndex + 1) + " / " + channels.length;
+        if (prevBtn) prevBtn.disabled = (currentPlayerChannelIndex <= 0);
+        if (nextBtn) nextBtn.disabled = (currentPlayerChannelIndex >= channels.length - 1);
+        if (editBtn) editBtn.style.display = "inline-flex";
+      } else {
+        if (idxBadge) idxBadge.textContent = "โหมดทดสอบ URL";
+        if (prevBtn) prevBtn.disabled = true;
+        if (nextBtn) nextBtn.disabled = true;
+        if (editBtn) editBtn.style.display = "none";
+      }
+
+      // Start Playback
+      startPlayback(data.url);
+    }
+
+    function closeStreamPlayer() {
+      destroyPlayer();
+      const modal = document.getElementById("streamPlayerModal");
+      if (modal) modal.style.display = "none";
+    }
+
+    function destroyPlayer() {
+      if (playerDiagInterval) {
+        clearInterval(playerDiagInterval);
+        playerDiagInterval = null;
+      }
+      const video = document.getElementById("studioVideoPlayer");
+      if (video) {
+        try {
+          video.pause();
+          video.removeAttribute("src");
+          video.load();
+        } catch (_) {}
+      }
+      if (hlsInstance) {
+        try {
+          hlsInstance.destroy();
+        } catch (_) {}
+        hlsInstance = null;
+      }
+    }
+
+    function setPlayerLoading(loading, text = "กำลังเชื่อมต่อสตรีม...") {
+      const overlay = document.getElementById("playerLoadingOverlay");
+      const textEl = document.getElementById("playerLoadingText");
+      if (textEl) textEl.textContent = text;
+      if (overlay) overlay.style.display = loading ? "flex" : "none";
+    }
+
+    function setPlayerError(isError, title = "", desc = "") {
+      const overlay = document.getElementById("playerErrorOverlay");
+      const titleEl = document.getElementById("playerErrorTitle");
+      const descEl = document.getElementById("playerErrorDesc");
+      if (titleEl && title) titleEl.textContent = title;
+      if (descEl && desc) descEl.textContent = desc;
+      if (overlay) overlay.style.display = isError ? "flex" : "none";
+      if (isError) {
+        setPlayerLoading(false);
+        const diag = document.getElementById("diagStatus");
+        if (diag) { diag.textContent = "🔴 เกิดข้อผิดพลาด"; diag.style.color = "var(--danger)"; }
+      }
+    }
+
+    function startPlayback(rawUrl) {
+      destroyPlayer();
+      setPlayerError(false);
+
+      if (!rawUrl || !rawUrl.trim()) {
+        setPlayerLoading(false);
+        const diag = document.getElementById("diagStatus");
+        if (diag) { diag.textContent = "⚪ รอใส่ URL"; diag.style.color = "var(--text-muted)"; }
+        return;
+      }
+
+      const url = normalizePlaylistUrl(rawUrl.trim());
+      const video = document.getElementById("studioVideoPlayer");
+      if (!video) return;
+
+      const formatBadge = document.getElementById("playerFormatBadge");
+      const isHls = url.toLowerCase().includes(".m3u8") || url.toLowerCase().includes("/hls/") || url.toLowerCase().includes("playlist.m3u8");
+      
+      if (formatBadge) {
+        formatBadge.textContent = isHls ? "HLS (.m3u8)" : (url.toLowerCase().endsWith(".mp4") ? "MP4 Video" : "Live Stream");
+      }
+
+      setPlayerLoading(true, "กำลังโหลดและประมวลผลสตรีม...");
+      const diagStatus = document.getElementById("diagStatus");
+      const diagEngine = document.getElementById("diagEngine");
+      if (diagStatus) { diagStatus.textContent = "🟡 กำลังเชื่อมต่อ..."; diagStatus.style.color = "var(--warning)"; }
+
+      // Check for Hls.js support
+      if (isHls && window.Hls && Hls.isSupported()) {
+        if (diagEngine) diagEngine.textContent = "HLS.js (MSE)";
+        hlsInstance = new Hls({
+          enableWorker: true,
+          lowLatencyMode: true,
+          backBufferLength: 60,
+          manifestLoadingTimeOut: 10000,
+          manifestLoadingMaxRetry: 3,
+          levelLoadingTimeOut: 10000,
+          fragLoadingTimeOut: 15000
+        });
+
+        hlsInstance.loadSource(url);
+        hlsInstance.attachMedia(video);
+
+        hlsInstance.on(Hls.Events.MANIFEST_PARSED, function (event, data) {
+          setPlayerLoading(false);
+          populateQualityLevels(data.levels || []);
+          populateAudioTracks(hlsInstance.audioTracks || []);
+          video.play().catch(e => {
+            console.log("Autoplay prevented:", e);
+            video.muted = true;
+            video.play().catch(() => {});
+          });
+          if (diagStatus) { diagStatus.textContent = "🟢 กำลังเล่น (Playing)"; diagStatus.style.color = "var(--success)"; }
+          if (channels && currentPlayerChannelIndex >= 0 && currentPlayerChannelIndex < channels.length) {
+            channels[currentPlayerChannelIndex].status = "alive";
+            renderChannels();
+            updateStats();
+          }
+        });
+
+        hlsInstance.on(Hls.Events.LEVEL_SWITCHED, function (event, data) {
+          updateQualityDiagnostics();
+        });
+
+        hlsInstance.on(Hls.Events.AUDIO_TRACKS_UPDATED, function (event, data) {
+          populateAudioTracks(data.audioTracks || []);
+        });
+
+        hlsInstance.on(Hls.Events.ERROR, function (event, data) {
+          console.warn("HLS Error:", data);
+          if (data.fatal) {
+            switch (data.type) {
+              case Hls.ErrorTypes.NETWORK_ERROR:
+                console.error("Fatal network error in HLS:", data);
+                if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR || data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT) {
+                  setPlayerError(true, "ไม่สามารถดาวน์โหลด HLS Manifest ได้", "การเชื่อมต่อล้มเหลว หรือถูกบล็อกโดย CORS / นโยบายความปลอดภัยของเบราว์เซอร์");
+                } else {
+                  hlsInstance.startLoad();
+                }
+                break;
+              case Hls.ErrorTypes.MEDIA_ERROR:
+                console.error("Fatal media error in HLS:", data);
+                hlsInstance.recoverMediaError();
+                break;
+              default:
+                setPlayerError(true, "เกิดข้อผิดพลาดในการเล่นสตรีม", data.details || "ไม่สามารถถอดรหัสวิดีโอได้");
+                destroyPlayer();
+                break;
+            }
+          }
+        });
+
+      } else if (video.canPlayType("application/vnd.apple.mpegurl") || !isHls) {
+        // Native video playback (Safari iOS/macOS or Direct MP4/WebM)
+        if (diagEngine) diagEngine.textContent = "HTML5 Native";
+        video.src = url;
+        video.addEventListener("loadedmetadata", function onMeta() {
+          video.removeEventListener("loadedmetadata", onMeta);
+          setPlayerLoading(false);
+          video.play().catch(e => {
+            video.muted = true;
+            video.play().catch(() => {});
+          });
+          if (diagStatus) { diagStatus.textContent = "🟢 กำลังเล่น (Playing)"; diagStatus.style.color = "var(--success)"; }
+          if (channels && currentPlayerChannelIndex >= 0 && currentPlayerChannelIndex < channels.length) {
+            channels[currentPlayerChannelIndex].status = "alive";
+            renderChannels();
+            updateStats();
+          }
+        });
+        video.addEventListener("error", function onErr(e) {
+          video.removeEventListener("error", onErr);
+          setPlayerError(true, "ไม่สามารถเล่นสตรีมนี้ได้", "เบราว์เซอร์ไม่รองรับรูปแบบโคเดกนี้ หรือลิงก์ถูกบล็อกโดย Mixed Content (HTTP)");
+        });
+        video.load();
+      } else {
+        setPlayerError(true, "เบราว์เซอร์ไม่รองรับ", "เบราว์เซอร์นี้ไม่รองรับเทคโนโลยี HLS หรือ MediaSource Extensions");
+      }
+
+      startDiagnosticsPoller();
+    }
+
+    function populateQualityLevels(levels) {
+      const select = document.getElementById("playerQualitySelect");
+      if (!select) return;
+      
+      let html = '<option value="-1">อัตโนมัติ (Auto)</option>';
+      if (Array.isArray(levels) && levels.length > 0) {
+        levels.forEach((lvl, idx) => {
+          const height = lvl.height || 0;
+          const bitrate = lvl.bitrate ? Math.round(lvl.bitrate / 1000) + " kbps" : "";
+          const label = height > 0 ? (height + "p (" + bitrate + ")") : ("Level " + (idx + 1) + " (" + bitrate + ")");
+          html += '<option value="' + idx + '">' + escapeHtml(label) + '</option>';
+        });
+      }
+      select.innerHTML = html;
+      select.value = "-1";
+    }
+
+    function populateAudioTracks(tracks) {
+      const wrapper = document.getElementById("playerAudioTrackWrapper");
+      const select = document.getElementById("playerAudioTrackSelect");
+      if (!wrapper || !select) return;
+
+      if (Array.isArray(tracks) && tracks.length > 1) {
+        wrapper.style.display = "flex";
+        let html = '<option value="-1">ค่าเริ่มต้น (Default)</option>';
+        tracks.forEach((tr, idx) => {
+          const name = tr.name || tr.lang || ("Track " + (idx + 1));
+          html += '<option value="' + idx + '">' + escapeHtml(name) + '</option>';
+        });
+        select.innerHTML = html;
+      } else {
+        wrapper.style.display = "none";
+      }
+    }
+
+    function changePlayerQuality(lvlIdx) {
+      const idx = parseInt(lvlIdx, 10);
+      if (hlsInstance) {
+        hlsInstance.currentLevel = idx;
+        updateQualityDiagnostics();
+      }
+    }
+
+    function changePlayerAudioTrack(trackIdx) {
+      const idx = parseInt(trackIdx, 10);
+      if (hlsInstance) {
+        hlsInstance.audioTrack = idx;
+      }
+    }
+
+    function updateQualityDiagnostics() {
+      const video = document.getElementById("studioVideoPlayer");
+      const resEl = document.getElementById("diagResolution");
+      const brEl = document.getElementById("diagBitrate");
+
+      if (video && video.videoWidth && video.videoHeight) {
+        if (resEl) resEl.textContent = video.videoWidth + "x" + video.videoHeight;
+      }
+
+      if (hlsInstance && hlsInstance.levels && hlsInstance.currentLevel >= 0) {
+        const cur = hlsInstance.levels[hlsInstance.currentLevel];
+        if (cur) {
+          if (resEl && cur.width && cur.height) resEl.textContent = cur.width + "x" + cur.height;
+          if (brEl && cur.bitrate) brEl.textContent = (cur.bitrate / 1000000).toFixed(2) + " Mbps";
+        }
+      }
+    }
+
+    function startDiagnosticsPoller() {
+      if (playerDiagInterval) clearInterval(playerDiagInterval);
+      playerDiagInterval = setInterval(() => {
+        const video = document.getElementById("studioVideoPlayer");
+        if (!video) return;
+
+        const diagStatus = document.getElementById("diagStatus");
+        const diagBuffer = document.getElementById("diagBuffer");
+        const resEl = document.getElementById("diagResolution");
+
+        if (video.videoWidth && video.videoHeight && resEl) {
+          resEl.textContent = video.videoWidth + "x" + video.videoHeight;
+        }
+
+        if (video.paused) {
+          if (diagStatus && diagStatus.textContent.includes("กำลังเล่น")) {
+            diagStatus.textContent = "⏸️ หยุดชั่วคราว (Paused)";
+            diagStatus.style.color = "var(--text-muted)";
+          }
+        } else if (video.seeking || video.readyState < 3) {
+          if (diagStatus) {
+            diagStatus.textContent = "🟡 กำลังบัฟเฟอร์ (Buffering)...";
+            diagStatus.style.color = "var(--warning)";
+          }
+        } else {
+          if (diagStatus) {
+            diagStatus.textContent = "🟢 กำลังเล่น (Playing)";
+            diagStatus.style.color = "var(--success)";
+          }
+        }
+
+        // Buffer calculation
+        if (video.buffered && video.buffered.length > 0) {
+          const curTime = video.currentTime;
+          let bufLen = 0;
+          for (let i = 0; i < video.buffered.length; i++) {
+            if (video.buffered.start(i) <= curTime && curTime <= video.buffered.end(i)) {
+              bufLen = video.buffered.end(i) - curTime;
+              break;
+            }
+          }
+          if (diagBuffer) diagBuffer.textContent = bufLen.toFixed(1) + "s";
+        }
+      }, 1000);
+    }
+
+    function playerNavigateChannel(offset) {
+      if (!channels || channels.length === 0) return;
+      let newIdx = currentPlayerChannelIndex + offset;
+      if (newIdx < 0) newIdx = 0;
+      if (newIdx >= channels.length) newIdx = channels.length - 1;
+      if (newIdx !== currentPlayerChannelIndex) {
+        openStreamPlayer(newIdx);
+      }
+    }
+
+    function retryCurrentPlayerStream() {
+      const urlInput = document.getElementById("playerUrlInput");
+      const url = urlInput ? urlInput.value.trim() : "";
+      startPlayback(url);
+    }
+
+    function playCustomUrlFromInput() {
+      const urlInput = document.getElementById("playerUrlInput");
+      const url = urlInput ? urlInput.value.trim() : "";
+      if (!url) {
+        alert("กรุณาระบุ URL สตรีมก่อนเล่น");
+        return;
+      }
+      startPlayback(url);
+    }
+
+    function copyPlayerStreamUrl() {
+      const urlInput = document.getElementById("playerUrlInput");
+      const url = urlInput ? urlInput.value.trim() : "";
+      if (url) {
+        navigator.clipboard.writeText(url).then(() => {
+          alert("📋 คัดลอก URL สตรีมเรียบร้อยแล้ว");
+        });
+      }
+    }
+
+    function openStreamInNewTab() {
+      const urlInput = document.getElementById("playerUrlInput");
+      const url = urlInput ? urlInput.value.trim() : "";
+      if (url) {
+        window.open(url, "_blank");
+      }
+    }
+
+    function markCurrentPlayerStatus(isAlive) {
+      if (channels && currentPlayerChannelIndex >= 0 && currentPlayerChannelIndex < channels.length) {
+        channels[currentPlayerChannelIndex].status = isAlive ? "alive" : "dead";
+        renderChannels();
+        updateStats();
+        alert(isAlive ? "✅ บันทึกสถานะ: 🟢 ใช้งานได้" : "⚠️ บันทึกสถานะ: 🔴 เสีย");
+      } else {
+        alert("ทดสอบ URL สำเร็จ");
+      }
+    }
+
+    function editChannelFromPlayer() {
+      if (channels && currentPlayerChannelIndex >= 0 && currentPlayerChannelIndex < channels.length) {
+        const idxToEdit = currentPlayerChannelIndex;
+        closeStreamPlayer();
+        editChannel(idxToEdit);
+      }
+    }
+
+    function togglePlayerPip() {
+      const video = document.getElementById("studioVideoPlayer");
+      if (!video) return;
+      if (document.pictureInPictureElement) {
+        document.exitPictureInPicture().catch(() => {});
+      } else if (document.pictureInPictureEnabled && video.requestPictureInPicture) {
+        video.requestPictureInPicture().catch(err => {
+          alert("ไม่สามารถเปิด Picture-in-Picture ได้: " + err.message);
+        });
+      } else {
+        alert("เบราว์เซอร์นี้ไม่รองรับ Picture-in-Picture");
+      }
+    }
+
+    function togglePlayerFullscreen() {
+      const container = document.querySelector(".player-stage-container");
+      if (!container) return;
+      if (!document.fullscreenElement) {
+        if (container.requestFullscreen) {
+          container.requestFullscreen().catch(() => {});
+        } else if (container.webkitRequestFullscreen) {
+          container.webkitRequestFullscreen();
+        }
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+      }
+    }
+
+    // Keyboard Shortcuts for Player
+    document.addEventListener("keydown", function(e) {
+      const modal = document.getElementById("streamPlayerModal");
+      if (!modal || modal.style.display !== "flex") return;
+
+      if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
+
+      if (e.key === "Escape") {
+        closeStreamPlayer();
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        playerNavigateChannel(-1);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        playerNavigateChannel(1);
+      } else if (e.key === "f" || e.key === "F") {
+        togglePlayerFullscreen();
+      } else if (e.key === "p" || e.key === "P") {
+        togglePlayerPip();
+      }
+    });
 
     function populateChannelModalGroups(selectedGroup) {
       const select = document.getElementById("selectChGroup");
