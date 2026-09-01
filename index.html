@@ -1231,47 +1231,197 @@
 
   <!-- MODAL: IMPORT PLAYLIST -->
   <div class="modal-backdrop" id="importModal">
-    <div class="modal-box" style="max-width: 560px;">
-      <div class="modal-title">
+    <div class="modal-box" style="max-width: 620px;">
+      <div class="modal-title" style="margin-bottom: 14px;">
         <h3>📥 นำเข้าช่องรายการ (Import Playlist)</h3>
         <button class="btn btn-ghost btn-sm" onclick="closeImportModal()">✕</button>
       </div>
-      <div style="display: flex; flex-direction: column; gap: 16px;">
-        
-        <!-- File Dropzone -->
-        <div class="form-group">
-          <label class="form-label" style="font-weight: 600;">1. อัปโหลดไฟล์ (.m3u, .m3u8, .w3u, .json, .txt, .csv)</label>
-          <div id="dropzoneArea" onclick="document.getElementById('importFileInput').click()" style="border: 2px dashed var(--border-strong); border-radius: 10px; padding: 22px 16px; text-align: center; background: var(--surface-subtle); cursor: pointer; transition: all 0.2s;">
-            <div style="font-size: 28px; margin-bottom: 6px;">📁</div>
-            <div style="font-size: 13px; font-weight: 600; color: var(--text);">คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่</div>
-            <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">รองรับไฟล์เพลย์ลิสต์ M3U / M3U8, Wiseplay W3U, JSON และข้อความ TXT</div>
-            <input type="file" id="importFileInput" accept=".m3u,.m3u8,.w3u,.txt,.json,.csv" style="display: none;" onchange="handleFileUpload(event)">
+
+      <!-- Tab Navigation -->
+      <div class="nav-tabs" style="width: 100%; margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 4px;">
+        <button class="tab-item active" id="tabImportFileBtn" onclick="switchImportTab('file')" style="flex: 1; min-width: 120px; text-align: center;">📁 ไฟล์ / ข้อความ M3U</button>
+        <button class="tab-item" id="tabImportUrlBtn" onclick="switchImportTab('url')" style="flex: 1; min-width: 90px; text-align: center;">🔗 ลิงก์ URL</button>
+        <button class="tab-item" id="tabImportXtreamBtn" onclick="switchImportTab('xtream')" style="flex: 1; min-width: 120px; text-align: center;">⚡ Xtream Codes</button>
+        <button class="tab-item" id="tabImportStbBtn" onclick="switchImportTab('stb')" style="flex: 1; min-width: 120px; text-align: center;">📺 กล่อง STB (MAC)</button>
+      </div>
+
+      <!-- TAB 1: FILE UPLOAD & PASTE RAW M3U / W3U -->
+      <div id="importTabFile" class="import-tab-content">
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <!-- File Dropzone -->
+          <div class="form-group">
+            <label class="form-label" style="font-weight: 600;">1. อัปโหลดไฟล์เพลย์ลิสต์ (.m3u, .m3u8, .w3u, .json, .txt, .csv)</label>
+            <div id="dropzoneArea" onclick="document.getElementById('importFileInput').click()" style="border: 2px dashed var(--border-strong); border-radius: 10px; padding: 20px 16px; text-align: center; background: var(--surface-subtle); cursor: pointer; transition: all 0.2s;">
+              <div style="font-size: 26px; margin-bottom: 4px;">📁</div>
+              <div style="font-size: 13px; font-weight: 600; color: var(--text);">คลิกเพื่อเลือกไฟล์ หรือลากไฟล์มาวางที่นี่</div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">รองรับไฟล์ M3U / M3U8, Wiseplay W3U, JSON และข้อความ TXT</div>
+              <input type="file" id="importFileInput" accept=".m3u,.m3u8,.w3u,.txt,.json,.csv" style="display: none;" onchange="handleFileUpload(event)">
+            </div>
           </div>
-        </div>
 
-        <!-- URL Import -->
-        <div class="form-group">
-          <label class="form-label" style="font-weight: 600;">2. หรือดึงจาก URL ลิงก์ตรง (Direct URL / Raw GitHub / Pastebin)</label>
-          <div style="display: flex; gap: 8px;">
-            <input type="text" id="importUrlInput" placeholder="https://example.com/playlist.m3u8 หรือ raw.githubusercontent.com..." style="flex: 1;">
-            <button class="btn btn-primary btn-sm" id="btnFetchUrl" onclick="fetchPlaylistFromUrl()">ดึงข้อมูล</button>
+          <!-- Raw Text Import -->
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label class="form-label" style="font-weight: 600; margin-bottom: 0;">2. หรือวางเนื้อหาเพลย์ลิสต์ (Raw Content)</label>
+              <div style="display: flex; gap: 6px;">
+                <button type="button" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 2px 8px;" onclick="pasteToElement('importTextInput')">📋 วางจากคลิปบอร์ด</button>
+                <button type="button" class="btn btn-ghost btn-sm" style="font-size: 11px; padding: 2px 8px;" onclick="document.getElementById('importTextInput').value=''">🧹 ล้างข้อความ</button>
+              </div>
+            </div>
+            <textarea id="importTextInput" rows="5" placeholder="#EXTM3U&#10;#EXTINF:-1 tvg-logo=&quot;http://.../logo.png&quot; group-title=&quot;ดิจิตอลทีวี&quot;,ช่อง 3 HD&#10;https://stream.example/live.m3u8&#10;&#10;หรือแบบบรรทัดเดียว: ชื่อช่อง, https://stream.url" style="font-family: 'JetBrains Mono', monospace; font-size: 12px;"></textarea>
           </div>
-        </div>
 
-        <!-- Raw Text Import -->
-        <div class="form-group">
-          <label class="form-label" style="font-weight: 600;">3. หรือวางเนื้อหา M3U / W3U (Raw Text)</label>
-          <textarea id="importTextInput" rows="5" placeholder="#EXTM3U&#10;#EXTINF:-1 tvg-logo=&quot;http://.../logo.png&quot; group-title=&quot;ดิจิตอลทีวี&quot;,ช่อง 3 HD&#10;https://stream.example/live.m3u8&#10;&#10;หรือแบบบรรทัดเดียว: ชื่อช่อง, https://stream.url" style="font-family: 'JetBrains Mono', monospace; font-size: 12px;"></textarea>
-        </div>
-
-        <!-- Action Buttons -->
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
-          <div id="importLoadingMsg" style="font-size: 12px; color: var(--primary); display: none;">⏳ กำลังประมวลผลไฟล์...</div>
-          <div style="display: flex; gap: 8px; margin-left: auto;">
+          <!-- Action Buttons -->
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;">
             <button class="btn btn-secondary" onclick="closeImportModal()">ปิด</button>
-            <button class="btn btn-primary" onclick="processRawTextImport()">นำเข้าข้อความ</button>
+            <button class="btn btn-primary" onclick="processRawTextImport()">📥 นำเข้าข้อความ M3U</button>
           </div>
         </div>
+      </div>
+
+      <!-- TAB 2: DIRECT URL LINK -->
+      <div id="importTabUrl" class="import-tab-content" style="display: none;">
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div class="form-group">
+            <label class="form-label" style="font-weight: 600;">ลิงก์ URL เพลย์ลิสต์ (Direct M3U / GitHub / Drive / Pastebin)</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="importUrlInput" placeholder="https://example.com/playlist.m3u8 หรือ raw.githubusercontent.com..." style="flex: 1;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="pasteToElement('importUrlInput')">📋 วาง</button>
+            </div>
+          </div>
+
+          <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 12px; color: var(--text-muted); line-height: 1.6;">
+            <div style="font-weight: 600; color: var(--text); margin-bottom: 4px;">💡 แหล่งที่รองรับ:</div>
+            <div>• ลิงก์ตรงไฟล์ <code>.m3u</code>, <code>.m3u8</code>, <code>.w3u</code>, <code>.txt</code></div>
+            <div>• <b>Google Drive</b> ลิงก์แชร์สาธารณะ (แปลงโหลดอัตโนมัติ)</div>
+            <div>• <b>GitHub</b> ลิงก์ blob / raw (เช่น raw.githubusercontent.com)</div>
+            <div>• <b>Pastebin</b> ลิงก์ตรงหรือลิงก์ raw</div>
+            <div>• <b>Dropbox</b> ลิงก์แชร์ไฟล์ (?dl=1)</div>
+            <div style="margin-top: 4px; color: var(--primary); font-size: 11px;">* หากเซิร์ฟเวอร์ปลายทางบล็อก CORS ระบบจะดึงผ่าน Server Proxy ให้อัตโนมัติ</div>
+          </div>
+
+          <!-- Action Buttons -->
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;">
+            <button class="btn btn-secondary" onclick="closeImportModal()">ปิด</button>
+            <button class="btn btn-primary" id="btnFetchUrl" onclick="fetchPlaylistFromUrl()">🌐 ดึงข้อมูลและนำเข้า</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 3: XTREAM CODES API -->
+      <div id="importTabXtream" class="import-tab-content" style="display: none;">
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-size: 12px; color: var(--text-muted);">
+            เชื่อมต่อ API ระบบ <b>Xtream Codes IPTV</b> เพื่อดึงหมวดหมู่และช่องสตรีมสด (Live) และภาพยนตร์ (VOD)
+          </div>
+
+          <!-- Server URL -->
+          <div class="form-group">
+            <label class="form-label" style="font-weight: 600; color: #f59e0b;">HOST / Server URL:</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="xtreamServerInput" placeholder="http://msdp2.otvipserv.com:80" style="flex: 1;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="pasteToElement('xtreamServerInput')">📋 วาง</button>
+            </div>
+          </div>
+
+          <!-- Username & Password Row -->
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="form-group">
+              <label class="form-label" style="font-weight: 600; color: #38bdf8;">USERNAME (ชื่อผู้ใช้):</label>
+              <div style="display: flex; gap: 6px;">
+                <input type="text" id="xtreamUserInput" placeholder="username" style="flex: 1;">
+                <button type="button" class="btn btn-secondary btn-sm" style="padding: 0 8px;" onclick="pasteToElement('xtreamUserInput')">📋</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label" style="font-weight: 600; color: #38bdf8;">PASSWORD (รหัสผ่าน):</label>
+              <div style="display: flex; gap: 6px;">
+                <input type="password" id="xtreamPassInput" placeholder="password" style="flex: 1;">
+                <button type="button" class="btn btn-ghost btn-sm" style="padding: 0 6px;" onclick="togglePasswordVisibility('xtreamPassInput')">👁️</button>
+                <button type="button" class="btn btn-secondary btn-sm" style="padding: 0 8px;" onclick="pasteToElement('xtreamPassInput')">📋</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Sync Options Checkboxes -->
+          <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 16px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;">
+              <input type="checkbox" id="xtreamSyncLive" checked> ซิงค์ช่องสด (Live TV)
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;">
+              <input type="checkbox" id="xtreamSyncVod" checked> ซิงค์ภาพยนตร์ (VOD Movies)
+            </label>
+          </div>
+
+          <!-- Test Result Banner -->
+          <div id="xtreamTestStatusCard" style="display: none; border-radius: 8px; padding: 10px 12px; font-size: 12px;"></div>
+
+          <!-- Test & Action Buttons -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+            <button class="btn btn-secondary btn-sm" id="btnTestXtream" onclick="testXtreamCodesConnection()">⚡ ทดสอบการเชื่อมต่อ</button>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-secondary" onclick="closeImportModal()">ปิด</button>
+              <button class="btn btn-primary" id="btnImportXtream" onclick="importFromXtreamCodes()">📥 นำเข้าช่อง Xtream</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB 4: STB / STALKER PORTAL (MAC) -->
+      <div id="importTabStb" class="import-tab-content" style="display: none;">
+        <div style="display: flex; flex-direction: column; gap: 12px;">
+          <div style="font-size: 12px; color: var(--text-muted);">
+            เชื่อมต่อกล่อง <b>STB / Stalker Middleware (MAG Portal)</b> ด้วยหมายเลข MAC Address
+          </div>
+
+          <!-- Portal URL -->
+          <div class="form-group">
+            <label class="form-label" style="font-weight: 600; color: #38bdf8;">Portal URL (ลิงก์เซิร์ฟเวอร์ เช่น /c/):</label>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="stbPortalInput" placeholder="http://skunkytv.live/c/" style="flex: 1;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="pasteToElement('stbPortalInput')">📋 วาง</button>
+            </div>
+          </div>
+
+          <!-- MAC Address -->
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label class="form-label" style="font-weight: 600; color: #a855f7; margin-bottom: 0;">MAC Address (คั่นด้วยจุลภาค/เว้นวรรคได้หลาย MAC):</label>
+              <button type="button" class="btn btn-ghost btn-sm" style="font-size: 11px; padding: 2px 6px;" onclick="formatStbMacInput()">⚡ จัดรูปแบบ MAC</button>
+            </div>
+            <div style="display: flex; gap: 8px;">
+              <input type="text" id="stbMacInput" placeholder="00:1A:79:B6:F2:D3, 00:1A:79:AA:BB:CC" style="flex: 1; font-family: 'JetBrains Mono', monospace;">
+              <button type="button" class="btn btn-secondary btn-sm" onclick="pasteToElement('stbMacInput', true)">📋 วาง</button>
+            </div>
+          </div>
+
+          <!-- Sync Options Checkboxes -->
+          <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; display: flex; flex-wrap: wrap; gap: 16px;">
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;">
+              <input type="checkbox" id="stbSyncLive" checked> ซิงค์ช่องสด (Live TV)
+            </label>
+            <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer;">
+              <input type="checkbox" id="stbSyncVod" checked> ซิงค์ภาพยนตร์ (VOD Movies)
+            </label>
+          </div>
+
+          <!-- STB Test Result Banner -->
+          <div id="stbTestStatusCard" style="display: none; border-radius: 8px; padding: 10px 12px; font-size: 12px;"></div>
+
+          <!-- Test & Action Buttons -->
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 4px;">
+            <button class="btn btn-secondary btn-sm" id="btnTestStb" onclick="testStbPortalConnection()">⚡ ทดสอบ Handshake</button>
+            <div style="display: flex; gap: 8px;">
+              <button class="btn btn-secondary" onclick="closeImportModal()">ปิด</button>
+              <button class="btn btn-primary" id="btnImportStb" onclick="importFromStbPortal()">📥 นำเข้าช่อง STB</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Global Modal Progress / Status Msg -->
+      <div id="importLoadingMsg" style="font-size: 12px; color: var(--primary); display: none; margin-top: 14px; padding: 8px 12px; background: rgba(56, 189, 248, 0.1); border-radius: 8px; border: 1px solid rgba(56, 189, 248, 0.25);">
+        ⏳ กำลังประมวลผล...
       </div>
     </div>
   </div>
@@ -3151,6 +3301,124 @@
       updateStats();
     }
 
+    // --- IMPORT PLAYLIST TABS & LOGIC ---
+    let currentImportTab = "file";
+
+    function switchImportTab(tabKey) {
+      currentImportTab = tabKey;
+      const tabs = ["file", "url", "xtream", "stb"];
+      tabs.forEach(t => {
+        const btn = document.getElementById("tabImport" + t.charAt(0).toUpperCase() + t.slice(1) + "Btn");
+        const panel = document.getElementById("importTab" + t.charAt(0).toUpperCase() + t.slice(1));
+        if (btn) {
+          if (t === tabKey) btn.classList.add("active");
+          else btn.classList.remove("active");
+        }
+        if (panel) {
+          panel.style.display = (t === tabKey) ? "block" : "none";
+        }
+      });
+      const msg = document.getElementById("importLoadingMsg");
+      if (msg) msg.style.display = "none";
+    }
+
+    async function pasteToElement(elementId, isMac = false) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      try {
+        if (navigator.clipboard && navigator.clipboard.readText) {
+          const text = await navigator.clipboard.readText();
+          if (text) {
+            if (isMac) {
+              const macs = parseMacAddresses(text);
+              el.value = macs.length > 0 ? macs.join(", ") : normalizeMacAddress(text);
+            } else {
+              el.value = text.trim();
+            }
+            return;
+          }
+        }
+      } catch (_) {}
+      
+      const manual = prompt("วางข้อความที่นี่ (Paste text):", el.value || "");
+      if (manual !== null) {
+        if (isMac) {
+          const macs = parseMacAddresses(manual);
+          el.value = macs.length > 0 ? macs.join(", ") : normalizeMacAddress(manual);
+        } else {
+          el.value = manual.trim();
+        }
+      }
+    }
+
+    function togglePasswordVisibility(elementId) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      el.type = el.type === "password" ? "text" : "password";
+    }
+
+    function formatStbMacInput() {
+      const el = document.getElementById("stbMacInput");
+      if (!el || !el.value) return;
+      const macs = parseMacAddresses(el.value);
+      if (macs.length > 0) {
+        el.value = macs.join(", ");
+      } else {
+        el.value = normalizeMacAddress(el.value);
+      }
+    }
+
+    // Helper: Network Fetch with Automatic CORS / Hub Proxy Fallback
+    async function requestViaProxyOrDirect(targetUrl, options = {}) {
+      const method = options.method || "GET";
+      const headers = options.headers || {
+        "Accept": "*/*",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      };
+
+      // 1. Try Direct Fetch first
+      try {
+        const directResp = await fetch(targetUrl, {
+          method: method,
+          headers: headers,
+          body: options.body || undefined
+        });
+        if (directResp.ok) {
+          const text = await directResp.text();
+          if (text && text.trim()) {
+            return { success: true, status: directResp.status, data: text };
+          }
+        }
+      } catch (err) {
+        // Direct fetch failed (e.g. CORS/Mixed content), fallback to Hub Proxy
+      }
+
+      // 2. Proxy Fetch via Backend Cloudflare Worker
+      try {
+        const proxyResp = await fetch(HUB_SERVER + "/api/proxy", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            targetUrl: targetUrl,
+            method: method,
+            headers: headers,
+            body: options.body || undefined
+          })
+        });
+        if (proxyResp.ok) {
+          const resJson = await proxyResp.json();
+          if (resJson.success && resJson.data) {
+            return { success: true, status: resJson.status || 200, data: resJson.data };
+          }
+          return { success: false, error: resJson.error || "Proxy failed to fetch target" };
+        }
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
+
+      return { success: false, error: "Network or proxy request failed" };
+    }
+
     function openImportModal() {
       const modal = document.getElementById("importModal");
       if (modal) modal.style.display = "flex";
@@ -3166,6 +3434,12 @@
 
       const msg = document.getElementById("importLoadingMsg");
       if (msg) msg.style.display = "none";
+
+      const xStatus = document.getElementById("xtreamTestStatusCard");
+      if (xStatus) xStatus.style.display = "none";
+
+      const stbStatus = document.getElementById("stbTestStatusCard");
+      if (stbStatus) stbStatus.style.display = "none";
 
       // Setup Drag and Drop events once
       const dropzone = document.getElementById("dropzoneArea");
@@ -3389,6 +3663,692 @@
         alert("✅ นำเข้าสำเร็จทั้งหมด " + added + " ช่อง!");
       } else {
         alert("⚠️ ไม่พบช่องรายการที่ถูกต้องในข้อความที่วาง");
+      }
+    }
+
+    // =========================================================================
+    // ⚡ XTREAM CODES API IMPORT LOGIC (Reference: XtreamCodesEngine.kt)
+    // =========================================================================
+    function normalizeServerUrl(rawUrl) {
+      let u = (rawUrl || "").trim();
+      if (!u) return "";
+      if (!u.startsWith("http://") && !u.startsWith("https://")) {
+        u = "http://" + u;
+      }
+      return u.replace(/\/+$/, "");
+    }
+
+    function formatTimestampToDate(ts) {
+      if (!ts || ts === "null" || ts === "0") return "ไม่จำกัด (Unlimited)";
+      try {
+        const num = parseInt(ts, 10);
+        if (isNaN(num) || num <= 0) return ts;
+        // Check if seconds or milliseconds
+        const d = num > 10000000000 ? new Date(num) : new Date(num * 1000);
+        if (isNaN(d.getTime())) return ts;
+        return d.toLocaleDateString('th-TH', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+      } catch (_) {
+        return ts;
+      }
+    }
+
+    async function testXtreamCodesConnection() {
+      const serverUrl = (document.getElementById("xtreamServerInput").value || "").trim();
+      const username = (document.getElementById("xtreamUserInput").value || "").trim();
+      const password = (document.getElementById("xtreamPassInput").value || "").trim();
+
+      const card = document.getElementById("xtreamTestStatusCard");
+      const btn = document.getElementById("btnTestXtream");
+
+      if (!serverUrl || !username || !password) {
+        alert("กรุณากรอกข้อมูล HOST URL, USERNAME และ PASSWORD ให้ครบถ้วน");
+        return;
+      }
+
+      const host = normalizeServerUrl(serverUrl);
+      const testUrl = `${host}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+
+      if (btn) { btn.disabled = true; btn.textContent = "⏳ กำลังทดสอบ..."; }
+      if (card) {
+        card.style.display = "block";
+        card.style.background = "var(--surface-subtle)";
+        card.style.border = "1px solid var(--border)";
+        card.style.color = "var(--text)";
+        card.innerHTML = "⏳ กำลังเชื่อมต่อและตรวจสอบสิทธิ์กับเซิร์ฟเวอร์ Xtream Codes...";
+      }
+
+      try {
+        const res = await requestViaProxyOrDirect(testUrl);
+        if (!res.success || !res.data) {
+          throw new Error(res.error || "ไม่สามารถเชื่อมต่อกับเซิร์ฟเวอร์ได้");
+        }
+
+        let parsed = null;
+        try {
+          parsed = JSON.parse(res.data);
+        } catch (_) {
+          const jsonObjs = extractJsonObjects(res.data);
+          if (jsonObjs && jsonObjs.length > 0) parsed = jsonObjs[0];
+        }
+
+        if (!parsed || typeof parsed !== 'object') {
+          throw new Error("เซิร์ฟเวอร์ตอบกลับแต่ข้อมูลไม่ได้อยู่ในรูปแบบ JSON ของ Xtream Codes");
+        }
+
+        const userInfo = parsed.user_info || {};
+        const serverInfo = parsed.server_info || {};
+        const isAuth = userInfo.auth === 1 || userInfo.auth === "1" || userInfo.status === "Active";
+
+        if (!isAuth && userInfo.status !== "Active") {
+          const errMsg = userInfo.message || userInfo.status || "ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง (Unauthorized)";
+          if (card) {
+            card.style.background = "rgba(239, 68, 68, 0.1)";
+            card.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+            card.style.color = "#f87171";
+            card.innerHTML = `❌ <b>เชื่อมต่อไม่สำเร็จ:</b> ${errMsg}`;
+          }
+          return;
+        }
+
+        const expDate = formatTimestampToDate(userInfo.exp_date);
+        const maxConns = userInfo.max_connections || "1";
+        const actConns = userInfo.active_cons || "0";
+        const sName = serverInfo.server_name || host;
+
+        if (card) {
+          card.style.background = "rgba(34, 197, 94, 0.1)";
+          card.style.border = "1px solid rgba(34, 197, 94, 0.3)";
+          card.style.color = "#4ade80";
+          card.innerHTML = `
+            <div style="font-weight: 700; font-size: 13px; margin-bottom: 4px;">✅ เชื่อมต่อสำเร็จ! (Connected Active)</div>
+            <div style="color: var(--text); font-size: 11.5px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; margin-top: 6px;">
+              <div><b>สถานะ:</b> <span style="color:#4ade80;">Active</span></div>
+              <div><b>วันหมดอายุ:</b> ${expDate}</div>
+              <div><b>การเชื่อมต่อ:</b> ${actConns} / ${maxConns} จอ</div>
+              <div><b>เซิร์ฟเวอร์:</b> ${serverInfo.timezone || "Online"}</div>
+            </div>
+          `;
+        }
+      } catch (err) {
+        if (card) {
+          card.style.background = "rgba(239, 68, 68, 0.1)";
+          card.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+          card.style.color = "#f87171";
+          card.innerHTML = `❌ <b>ข้อผิดพลาด:</b> ${err.message}`;
+        }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = "⚡ ทดสอบการเชื่อมต่อ"; }
+      }
+    }
+
+    async function importFromXtreamCodes() {
+      const serverUrl = (document.getElementById("xtreamServerInput").value || "").trim();
+      const username = (document.getElementById("xtreamUserInput").value || "").trim();
+      const password = (document.getElementById("xtreamPassInput").value || "").trim();
+      const syncLive = document.getElementById("xtreamSyncLive") ? document.getElementById("xtreamSyncLive").checked : true;
+      const syncVod = document.getElementById("xtreamSyncVod") ? document.getElementById("xtreamSyncVod").checked : true;
+
+      const btn = document.getElementById("btnImportXtream");
+      const msg = document.getElementById("importLoadingMsg");
+
+      if (!serverUrl || !username || !password) {
+        alert("กรุณากรอกข้อมูล HOST URL, USERNAME และ PASSWORD ให้ครบถ้วน");
+        return;
+      }
+      if (!syncLive && !syncVod) {
+        alert("กรุณาเลือกอย่างน้อย 1 ประเภท (ช่องสด Live หรือ ภาพยนตร์ VOD)");
+        return;
+      }
+
+      const host = normalizeServerUrl(serverUrl);
+      if (btn) { btn.disabled = true; btn.textContent = "กำลังนำเข้า..."; }
+      if (msg) { msg.textContent = "⏳ กำลังเชื่อมต่อเซิร์ฟเวอร์ Xtream Codes และดึงหมวดหมู่รายการ..."; msg.style.display = "block"; }
+
+      try {
+        let importedCount = 0;
+        const newChannels = [];
+
+        // 1. Fetch Live TV Streams
+        if (syncLive) {
+          if (msg) msg.textContent = "⏳ กำลังดึงหมวดหมู่และช่องถ่ายทอดสด (Live TV)...";
+          
+          // 1.1 Live Categories
+          const catMap = {};
+          try {
+            const catUrl = `${host}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_categories`;
+            const catRes = await requestViaProxyOrDirect(catUrl);
+            if (catRes.success && catRes.data) {
+              const catArr = JSON.parse(catRes.data);
+              if (Array.isArray(catArr)) {
+                catArr.forEach(c => {
+                  if (c && c.category_id && c.category_name) {
+                    catMap[c.category_id.toString()] = c.category_name.trim();
+                  }
+                });
+              }
+            }
+          } catch (_) {}
+
+          // 1.2 Live Streams
+          try {
+            const streamsUrl = `${host}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_live_streams`;
+            const streamRes = await requestViaProxyOrDirect(streamsUrl);
+            if (streamRes.success && streamRes.data) {
+              const streams = JSON.parse(streamRes.data);
+              if (Array.isArray(streams)) {
+                streams.forEach(s => {
+                  if (!s || !s.stream_id) return;
+                  const chName = (s.name || s.title || `Live Channel ${s.stream_id}`).trim();
+                  const catId = s.category_id ? s.category_id.toString() : "";
+                  const grp = catMap[catId] || "Live TV";
+                  const streamUrl = `${host}/live/${username}/${password}/${s.stream_id}.ts`;
+                  const logo = s.stream_icon || "";
+
+                  newChannels.push({
+                    name: chName,
+                    url: streamUrl,
+                    group: grp,
+                    logo: logo,
+                    referer: "",
+                    userAgent: "",
+                    status: "unknown"
+                  });
+                  importedCount++;
+                });
+              }
+            }
+          } catch (_) {}
+        }
+
+        // 2. Fetch VOD Movies
+        if (syncVod) {
+          if (msg) msg.textContent = "⏳ กำลังดึงหมวดหมู่และภาพยนตร์ (VOD Movies)...";
+
+          // 2.1 VOD Categories
+          const vodCatMap = {};
+          try {
+            const vodCatUrl = `${host}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_vod_categories`;
+            const vCatRes = await requestViaProxyOrDirect(vodCatUrl);
+            if (vCatRes.success && vCatRes.data) {
+              const vCatArr = JSON.parse(vCatRes.data);
+              if (Array.isArray(vCatArr)) {
+                vCatArr.forEach(c => {
+                  if (c && c.category_id && c.category_name) {
+                    vodCatMap[c.category_id.toString()] = c.category_name.trim();
+                  }
+                });
+              }
+            }
+          } catch (_) {}
+
+          // 2.2 VOD Streams
+          try {
+            const vodStreamsUrl = `${host}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&action=get_vod_streams`;
+            const vodRes = await requestViaProxyOrDirect(vodStreamsUrl);
+            if (vodRes.success && vodRes.data) {
+              const vodStreams = JSON.parse(vodRes.data);
+              if (Array.isArray(vodStreams)) {
+                vodStreams.forEach(v => {
+                  if (!v || !v.stream_id) return;
+                  const vName = (v.name || v.title || `VOD Movie ${v.stream_id}`).trim();
+                  const catId = v.category_id ? v.category_id.toString() : "";
+                  const grp = vodCatMap[catId] || "🎬 VOD Movies";
+                  const ext = v.container_extension || "mp4";
+                  const movieUrl = `${host}/movie/${username}/${password}/${v.stream_id}.${ext}`;
+                  const logo = v.stream_icon || "";
+
+                  newChannels.push({
+                    name: vName,
+                    url: movieUrl,
+                    group: grp,
+                    logo: logo,
+                    referer: "",
+                    userAgent: "",
+                    status: "unknown"
+                  });
+                  importedCount++;
+                });
+              }
+            }
+          } catch (_) {}
+        }
+
+        // 3. Fallback: If 0 channels parsed via JSON API, try M3U Plus endpoint
+        if (newChannels.length === 0) {
+          if (msg) msg.textContent = "⏳ กำลังดึงเพลย์ลิสต์ผ่าน get.php M3U Plus...";
+          const m3uUrl = `${host}/get.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}&type=m3u_plus&output=ts`;
+          const m3uRes = await requestViaProxyOrDirect(m3uUrl);
+          if (m3uRes.success && m3uRes.data && m3uRes.data.includes("#EXTINF")) {
+            importedCount = parseAndAppendPlaylist(m3uRes.data);
+          }
+        } else {
+          // Append new channels
+          channels = channels.concat(newChannels);
+          renderChannels();
+          renderGroupPills();
+          updateStats();
+        }
+
+        closeImportModal();
+        if (importedCount > 0) {
+          alert(`✅ นำเข้าช่องรายการ Xtream Codes สำเร็จทั้งหมด ${importedCount} ช่อง!`);
+        } else {
+          alert("⚠️ ไม่พบช่องรายการในบัญชี Xtream Codes นี้ หรือบัญชีอาจหมดอายุ");
+        }
+      } catch (err) {
+        alert("เกิดข้อผิดพลาดในการนำเข้า Xtream Codes: " + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = "📥 นำเข้าช่อง Xtream"; }
+        if (msg) msg.style.display = "none";
+      }
+    }
+
+    // =========================================================================
+    // 📺 STB / STALKER MIDDLEWARE (MAG PORTAL) IMPORT LOGIC (Reference: StalkerPortalEngine.kt)
+    // =========================================================================
+    const STB_USER_AGENT = "Mozilla/5.0 (QtEmbedded; U; Linux; C) AppleWebKit/533.3 (KHTML, like Gecko) MAG200 stbapp ver: 2 rev: 250 Safari/533.3";
+
+    function normalizeMacAddress(rawMac) {
+      const clean = (rawMac || "").trim().toUpperCase()
+        .replace(/-/g, ":")
+        .replace(/\./g, ":")
+        .replace(/\s+/g, "");
+      if (clean.length === 12 && !clean.includes(":")) {
+        return clean.match(/.{1,2}/g).join(":");
+      }
+      return clean;
+    }
+
+    function parseMacAddresses(rawInput) {
+      if (!rawInput || !rawInput.trim()) return [];
+      const tokens = rawInput.split(/[,;\n\r\t|\s]+/);
+      const result = [];
+      tokens.forEach(t => {
+        const norm = normalizeMacAddress(t);
+        if (norm.length >= 11 && (norm.includes(":") || norm.length === 12)) {
+          if (!result.includes(norm)) result.push(norm);
+        }
+      });
+      return result;
+    }
+
+    function getCandidateEndpoints(rawUrl) {
+      let u = (rawUrl || "").trim();
+      if (!u) return [];
+      if (!u.startsWith("http://") && !u.startsWith("https://")) u = "http://" + u;
+      u = u.replace(/\/+$/, "");
+
+      const list = [];
+      if (u.toLowerCase().endsWith("/c")) {
+        const parent = u.substring(0, u.length - 2);
+        list.push(parent + "/server/load.php");
+        list.push(u + "/server/load.php");
+        list.push(parent + "/load.php");
+      } else if (u.toLowerCase().includes("/c/")) {
+        const parent = u.substring(0, u.toLowerCase().indexOf("/c/"));
+        list.push(parent + "/server/load.php");
+        list.push(u + "/server/load.php");
+        list.push(parent + "/load.php");
+      } else if (u.toLowerCase().endsWith("/server/load.php") || u.toLowerCase().endsWith("/load.php")) {
+        list.push(u);
+      } else {
+        list.push(u + "/server/load.php");
+        list.push(u + "/c/server/load.php");
+        list.push(u + "/stalker_portal/server/load.php");
+        list.push(u + "/load.php");
+      }
+      return [...new Set(list)];
+    }
+
+    function extractStalkerToken(body) {
+      if (!body) return "";
+      try {
+        const root = JSON.parse(body);
+        if (root.js && typeof root.js === 'object' && root.js.token) return root.js.token;
+        if (root.token) return root.token;
+      } catch (_) {}
+      const match = body.match(/"token"\s*:\s*"([^"]+)"/);
+      return match ? match[1] : "";
+    }
+
+    function extractStalkerExpireDate(body) {
+      if (!body) return "";
+      try {
+        const root = JSON.parse(body);
+        const js = root.js || root;
+        const keys = ["expire_billing", "end_date", "expire_date", "sub_end_date", "account_balance", "expire"];
+        for (const k of keys) {
+          const v = js[k];
+          if (v && v !== "null" && v !== "0") return v.toString();
+        }
+      } catch (_) {}
+      return "";
+    }
+
+    async function performStalkerHandshake(endpoint, mac) {
+      const handshakeUrl = `${endpoint}?type=stb&action=handshake&token=&mac=${encodeURIComponent(mac)}&JsHttpRequest=1-xml`;
+      const res = await requestViaProxyOrDirect(handshakeUrl, {
+        headers: {
+          "User-Agent": STB_USER_AGENT,
+          "X-User-Agent": "Model: MAG250; Link: Ethernet",
+          "Cookie": `mac=${mac}; stb_lang=en; timezone=Europe/London;`,
+          "Accept": "*/*"
+        }
+      });
+      if (res.success && res.data) {
+        const token = extractStalkerToken(res.data);
+        if (token) return { success: true, token: token };
+      }
+      return { success: false, token: "" };
+    }
+
+    async function testStbPortalConnection() {
+      const rawPortalUrl = (document.getElementById("stbPortalInput").value || "").trim();
+      const rawMacInput = (document.getElementById("stbMacInput").value || "").trim();
+
+      const card = document.getElementById("stbTestStatusCard");
+      const btn = document.getElementById("btnTestStb");
+
+      const macList = parseMacAddresses(rawMacInput);
+      if (!rawPortalUrl) {
+        alert("กรุณากรอก Portal URL ของกล่อง STB (เช่น http://skunkytv.live/c/)");
+        return;
+      }
+      if (macList.length === 0) {
+        alert("กรุณากรอก MAC Address ให้ถูกต้อง (เช่น 00:1A:79:B6:F2:D3)");
+        return;
+      }
+
+      const endpoints = getCandidateEndpoints(rawPortalUrl);
+      if (endpoints.length === 0) {
+        alert("Portal URL ไม่ถูกต้อง");
+        return;
+      }
+
+      if (btn) { btn.disabled = true; btn.textContent = "⏳ กำลังทดสอบ Handshake..."; }
+      if (card) {
+        card.style.display = "block";
+        card.style.background = "var(--surface-subtle)";
+        card.style.border = "1px solid var(--border)";
+        card.style.color = "var(--text)";
+        card.innerHTML = `⏳ กำลังทดสอบ Handshake กับ ${endpoints.length} endpoints และ ${macList.length} MACs...`;
+      }
+
+      try {
+        let firstSuccess = null;
+        let workingCount = 0;
+        let lastError = "ไม่สามารถเชื่อมต่อ Stalker Portal ได้";
+
+        for (const endpoint of endpoints) {
+          for (const mac of macList) {
+            const hs = await performStalkerHandshake(endpoint, mac);
+            if (hs.success && hs.token) {
+              workingCount++;
+              let expireDate = "";
+
+              // Try get_profile
+              try {
+                const profUrl = `${endpoint}?type=stb&action=get_profile&mac=${encodeURIComponent(mac)}&stb_type=MAG250&sn=0000000000000&JsHttpRequest=1-xml`;
+                const pRes = await requestViaProxyOrDirect(profUrl, {
+                  headers: {
+                    "User-Agent": STB_USER_AGENT,
+                    "X-User-Agent": "Model: MAG250; Link: Ethernet",
+                    "Authorization": `Bearer ${hs.token}`,
+                    "Cookie": `mac=${mac}; stb_lang=en; timezone=Europe/London; token=${hs.token};`
+                  }
+                });
+                if (pRes.success && pRes.data) {
+                  expireDate = extractStalkerExpireDate(pRes.data);
+                }
+              } catch (_) {}
+
+              if (!firstSuccess) {
+                firstSuccess = {
+                  endpoint: endpoint,
+                  mac: mac,
+                  token: hs.token,
+                  expireDate: expireDate
+                };
+              }
+            } else {
+              lastError = `Handshake ล้มเหลวสำหรับ MAC: ${mac}`;
+            }
+          }
+          if (firstSuccess) break;
+        }
+
+        if (firstSuccess) {
+          const expDisplay = firstSuccess.expireDate ? formatTimestampToDate(firstSuccess.expireDate) : "เปิดใช้งาน (Active)";
+          if (card) {
+            card.style.background = "rgba(34, 197, 94, 0.1)";
+            card.style.border = "1px solid rgba(34, 197, 94, 0.3)";
+            card.style.color = "#4ade80";
+            card.innerHTML = `
+              <div style="font-weight: 700; font-size: 13px; margin-bottom: 4px;">✅ Handshake สำเร็จ! (Stalker Connected)</div>
+              <div style="color: var(--text); font-size: 11.5px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px 12px; margin-top: 6px;">
+                <div><b>MAC ที่ใช้งาน:</b> <span style="font-family: monospace; color:#38bdf8;">${firstSuccess.mac}</span></div>
+                <div><b>สถานะ:</b> <span style="color:#4ade80;">Active (${workingCount}/${macList.length} ทำงาน)</span></div>
+                <div><b>วันหมดอายุ/ข้อมูล:</b> ${expDisplay}</div>
+                <div><b>Endpoint:</b> <span style="font-size:10px; color:var(--text-muted);">${firstSuccess.endpoint}</span></div>
+              </div>
+            `;
+          }
+        } else {
+          if (card) {
+            card.style.background = "rgba(239, 68, 68, 0.1)";
+            card.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+            card.style.color = "#f87171";
+            card.innerHTML = `❌ <b>Handshake ล้มเหลว:</b> ${lastError}`;
+          }
+        }
+      } catch (err) {
+        if (card) {
+          card.style.background = "rgba(239, 68, 68, 0.1)";
+          card.style.border = "1px solid rgba(239, 68, 68, 0.3)";
+          card.style.color = "#f87171";
+          card.innerHTML = `❌ <b>ข้อผิดพลาด:</b> ${err.message}`;
+        }
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = "⚡ ทดสอบ Handshake"; }
+      }
+    }
+
+    async function importFromStbPortal() {
+      const rawPortalUrl = (document.getElementById("stbPortalInput").value || "").trim();
+      const rawMacInput = (document.getElementById("stbMacInput").value || "").trim();
+      const syncLive = document.getElementById("stbSyncLive") ? document.getElementById("stbSyncLive").checked : true;
+      const syncVod = document.getElementById("stbSyncVod") ? document.getElementById("stbSyncVod").checked : true;
+
+      const btn = document.getElementById("btnImportStb");
+      const msg = document.getElementById("importLoadingMsg");
+
+      const macList = parseMacAddresses(rawMacInput);
+      if (!rawPortalUrl) {
+        alert("กรุณากรอก Portal URL ของกล่อง STB (เช่น http://skunkytv.live/c/)");
+        return;
+      }
+      if (macList.length === 0) {
+        alert("กรุณากรอก MAC Address ให้ถูกต้อง (เช่น 00:1A:79:B6:F2:D3)");
+        return;
+      }
+      if (!syncLive && !syncVod) {
+        alert("กรุณาเลือกอย่างน้อย 1 ประเภท (ช่องสด Live หรือ ภาพยนตร์ VOD)");
+        return;
+      }
+
+      const endpoints = getCandidateEndpoints(rawPortalUrl);
+      if (btn) { btn.disabled = true; btn.textContent = "กำลังนำเข้า..."; }
+      if (msg) { msg.textContent = "⏳ กำลังเชื่อมต่อ Stalker Middleware และตรวจสอบสิทธิ์ MAC Address..."; msg.style.display = "block"; }
+
+      try {
+        let authSession = null;
+
+        // 1. Authenticate first working endpoint and MAC
+        for (const ep of endpoints) {
+          for (const m of macList) {
+            const hs = await performStalkerHandshake(ep, m);
+            if (hs.success && hs.token) {
+              authSession = { endpoint: ep, mac: m, token: hs.token };
+              break;
+            }
+          }
+          if (authSession) break;
+        }
+
+        if (!authSession) {
+          throw new Error("Handshake ล้มเหลว ไม่สามารถเชื่อมต่อกับ Portal ด้วย MAC Address ที่ระบุได้");
+        }
+
+        const endpoint = authSession.endpoint;
+        const normMac = authSession.mac;
+        const token = authSession.token;
+        const portalHost = endpoint.split("/server/load.php")[0].split("/load.php")[0];
+        const newChannels = [];
+        let importedCount = 0;
+
+        const authHeaders = {
+          "User-Agent": STB_USER_AGENT,
+          "X-User-Agent": "Model: MAG250; Link: Ethernet",
+          "Authorization": `Bearer ${token}`,
+          "Cookie": `mac=${normMac}; stb_lang=en; timezone=Europe/London; token=${token};`,
+          "Accept": "*/*"
+        };
+
+        // 2. Fetch Live TV Genres & Channels
+        if (syncLive) {
+          if (msg) msg.textContent = "⏳ กำลังดึงหมวดหมู่และผังรายการสด Stalker ITV...";
+
+          // 2.1 Fetch Genres
+          const genreMap = {};
+          try {
+            const gUrl = `${endpoint}?type=itv&action=get_genres&mac=${encodeURIComponent(normMac)}&JsHttpRequest=1-xml`;
+            const gRes = await requestViaProxyOrDirect(gUrl, { headers: authHeaders });
+            if (gRes.success && gRes.data) {
+              const gRoot = JSON.parse(gRes.data);
+              const gArr = gRoot.js ? (Array.isArray(gRoot.js) ? gRoot.js : gRoot.js.data) : null;
+              if (Array.isArray(gArr)) {
+                gArr.forEach(item => {
+                  if (item && item.id) {
+                    genreMap[item.id.toString()] = item.title || item.name || "Live TV";
+                  }
+                });
+              }
+            }
+          } catch (_) {}
+
+          // 2.2 Fetch All Channels
+          try {
+            const chUrl = `${endpoint}?type=itv&action=get_all_channels&mac=${encodeURIComponent(normMac)}&JsHttpRequest=1-xml`;
+            const chRes = await requestViaProxyOrDirect(chUrl, { headers: authHeaders });
+            if (chRes.success && chRes.data) {
+              const chRoot = JSON.parse(chRes.data);
+              const chArr = chRoot.js ? (Array.isArray(chRoot.js) ? chRoot.js : (chRoot.js.data || null)) : null;
+
+              if (Array.isArray(chArr) && chArr.length > 0) {
+                chArr.forEach(item => {
+                  if (!item) return;
+                  const name = (item.name || "").trim();
+                  if (!name) return;
+
+                  const rawCmd = (item.cmd || "").trim();
+                  const rawLogo = (item.logo || "").trim();
+                  const genreId = (item.tv_genre_id || item.genre_id || "").toString();
+                  const grp = genreMap[genreId] || "Live TV";
+
+                  const encodedCmd = encodeURIComponent(rawCmd);
+                  const macsStr = macList.join(",");
+                  const stalkerUrl = `stalker://${endpoint}?type=itv&action=create_link&cmd=${encodedCmd}&macs=${macsStr}|User-Agent=${STB_USER_AGENT}|Cookie=mac=${normMac}; stb_lang=en; timezone=Europe/London; token=${token};`;
+
+                  let logoUrl = "";
+                  if (rawLogo) {
+                    if (rawLogo.startsWith("http://") || rawLogo.startsWith("https://")) {
+                      logoUrl = rawLogo;
+                    } else {
+                      logoUrl = `${portalHost}/${rawLogo}`.replace(/([^:]\/)\/+/g, "$1");
+                    }
+                  }
+
+                  newChannels.push({
+                    name: name,
+                    url: stalkerUrl,
+                    group: grp,
+                    logo: logoUrl,
+                    referer: "",
+                    userAgent: STB_USER_AGENT,
+                    status: "unknown"
+                  });
+                  importedCount++;
+                });
+              }
+            }
+          } catch (_) {}
+        }
+
+        // 3. Fetch VOD Movies
+        if (syncVod) {
+          if (msg) msg.textContent = "⏳ กำลังดึงภาพยนตร์ VOD จากเซิร์ฟเวอร์ Stalker...";
+          try {
+            const vodUrl = `${endpoint}?type=vod&action=get_data&category=*&mac=${encodeURIComponent(normMac)}&JsHttpRequest=1-xml`;
+            const vRes = await requestViaProxyOrDirect(vodUrl, { headers: authHeaders });
+            if (vRes.success && vRes.data) {
+              const vRoot = JSON.parse(vRes.data);
+              const vArr = vRoot.js ? (Array.isArray(vRoot.js) ? vRoot.js : (vRoot.js.data || null)) : null;
+
+              if (Array.isArray(vArr) && vArr.length > 0) {
+                vArr.forEach(item => {
+                  if (!item) return;
+                  const name = (item.name || item.title || "").trim();
+                  if (!name) return;
+
+                  const rawCmd = (item.cmd || "").trim();
+                  const rawLogo = (item.screenshot_uri || item.poster || item.logo || "").trim();
+                  const encodedCmd = encodeURIComponent(rawCmd);
+                  const macsStr = macList.join(",");
+                  const stalkerUrl = `stalker://${endpoint}?type=vod&action=create_link&cmd=${encodedCmd}&macs=${macsStr}|User-Agent=${STB_USER_AGENT}|Cookie=mac=${normMac}; stb_lang=en; timezone=Europe/London; token=${token};`;
+
+                  let logoUrl = "";
+                  if (rawLogo) {
+                    if (rawLogo.startsWith("http://") || rawLogo.startsWith("https://")) {
+                      logoUrl = rawLogo;
+                    } else {
+                      logoUrl = `${portalHost}/${rawLogo}`.replace(/([^:]\/)\/+/g, "$1");
+                    }
+                  }
+
+                  newChannels.push({
+                    name: name,
+                    url: stalkerUrl,
+                    group: "🎬 VOD Movies",
+                    logo: logoUrl,
+                    referer: "",
+                    userAgent: STB_USER_AGENT,
+                    status: "unknown"
+                  });
+                  importedCount++;
+                });
+              }
+            }
+          } catch (_) {}
+        }
+
+        if (newChannels.length > 0) {
+          channels = channels.concat(newChannels);
+          renderChannels();
+          renderGroupPills();
+          updateStats();
+        }
+
+        closeImportModal();
+        if (importedCount > 0) {
+          alert(`✅ นำเข้าช่องรายการ STB / Stalker Portal สำเร็จทั้งหมด ${importedCount} ช่อง!`);
+        } else {
+          alert("⚠️ Handshake สำเร็จแต่ไม่พบช่องรายการสดหรือ VOD ในเซิร์ฟเวอร์");
+        }
+      } catch (err) {
+        alert("เกิดข้อผิดพลาดในการนำเข้า STB / Stalker: " + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = "📥 นำเข้าช่อง STB"; }
+        if (msg) msg.style.display = "none";
       }
     }
 
