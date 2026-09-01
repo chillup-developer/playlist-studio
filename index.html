@@ -2972,6 +2972,74 @@
       }
     }
 
+    function getLocalUserPlaylists() {
+      if (!currentUser || !currentUser.id) return [];
+      try {
+        const raw = localStorage.getItem("chillup_user_playlists_" + currentUser.id);
+        return raw ? JSON.parse(raw) : [];
+      } catch (_) {
+        return [];
+      }
+    }
+
+    function saveLocalUserPlaylist(playlistObj) {
+      if (!currentUser || !currentUser.id || !playlistObj) return;
+      try {
+        let lists = getLocalUserPlaylists();
+        const existingIdx = lists.findIndex(p => p.id === playlistObj.id || (playlistObj.redeemCode && p.redeemCode === playlistObj.redeemCode));
+        if (existingIdx >= 0) {
+          lists[existingIdx] = Object.assign({}, lists[existingIdx], playlistObj);
+        } else {
+          lists.unshift(playlistObj);
+        }
+        lists.sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        localStorage.setItem("chillup_user_playlists_" + currentUser.id, JSON.stringify(lists));
+      } catch (e) {
+        console.warn("saveLocalUserPlaylist error:", e);
+      }
+    }
+
+    function removeLocalUserPlaylist(plId, code) {
+      if (!currentUser || !currentUser.id) return;
+      try {
+        let lists = getLocalUserPlaylists();
+        lists = lists.filter(p => p.id !== plId && p.redeemCode !== code);
+        localStorage.setItem("chillup_user_playlists_" + currentUser.id, JSON.stringify(lists));
+      } catch (_) {}
+    }
+
+    function renderMyPlaylistsTable(items) {
+      const tbody = document.getElementById("myPlaylistsTableBody");
+      if (!tbody) return;
+
+      const lists = items !== undefined ? items : getLocalUserPlaylists();
+      if (!lists || lists.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-placeholder">ยังไม่มีเพลย์ลิสต์ที่คุณบันทึกไว้</td></tr>';
+        return;
+      }
+
+      let html = "";
+      lists.forEach(pl => {
+        const dateStr = pl.updatedAt ? new Date(pl.updatedAt).toLocaleDateString("th-TH") : (pl.createdAt ? new Date(pl.createdAt).toLocaleDateString("th-TH") : "-");
+        const expStr = pl.expiry || "ไม่มีวันหมดอายุ";
+        html += '<tr>' +
+          '<td><b style="color: var(--text);">' + escapeHtml(pl.name) + '</b></td>' +
+          '<td><span class="code-display" style="font-size: 13px; padding: 2px 8px; margin: 0; display: inline-block;">' + escapeHtml(pl.redeemCode) + '</span></td>' +
+          '<td>' + (pl.channelCount || 0) + ' ช่อง</td>' +
+          '<td style="color: var(--text-muted);">' + escapeHtml(expStr) + '</td>' +
+          '<td style="color: var(--text-muted);">' + dateStr + '</td>' +
+          '<td style="text-align: center;">' +
+            '<div style="display: flex; gap: 4px; justify-content: center;">' +
+              '<button class="btn btn-primary btn-sm" onclick="loadPlaylistIntoEditor(\'' + escapeHtml(pl.redeemCode) + '\', \'' + escapeHtml(pl.id || '') + '\')" title="โหลดข้อมูลทั้งหมดเข้าตัวแก้ไข">✏ โหลด 100%</button>' +
+              '<button class="btn btn-secondary btn-sm" onclick="copyTextCode(\'' + escapeHtml(pl.redeemCode) + '\')" title="คัดลอกรหัส">📋 คัดลอก</button>' +
+              '<button class="btn btn-danger btn-sm" onclick="deleteUserPlaylist(\'' + escapeHtml(pl.id) + '\', \'' + escapeHtml(pl.redeemCode) + '\')" title="ลบ">🗑</button>' +
+            '</div>' +
+          '</td>' +
+        '</tr>';
+      });
+      tbody.innerHTML = html;
+    }
+
     async function saveAndGenerateRedeemCode() {
       if (channels.length === 0) {
         alert("กรุณาเพิ่มช่องรายการอย่างน้อย 1 ช่องก่อนบันทึก");
@@ -3027,17 +3095,32 @@
 
         const res = await resp.json();
         if (res.success) {
+          // Store directly into local cache immediately for guaranteed persistence
+          const savedSummary = res.playlist || {
+            id: res.playlistId || payload.id || ("pl_" + Date.now().toString(36)),
+            userId: currentUser.id,
+            name: payload.name,
+            author: payload.author,
+            image: payload.image,
+            info: payload.info,
+            contact: payload.contact,
+            url: payload.url,
+            channelCount: payload.channels.length,
+            redeemCode: res.redeemCode,
+            maxUses: 0,
+            usedCount: payload.usedCount || 0,
+            expiry: null,
+            createdAt: payload.createdAt || Date.now(),
+            updatedAt: Date.now()
+          };
+          saveLocalUserPlaylist(savedSummary);
+
+          // Update My Playlists UI immediately
+          renderMyPlaylistsTable();
+
+          // Show Success Modal
           document.getElementById("displayRedeemCode").textContent = res.redeemCode;
           document.getElementById("redeemResultModal").style.display = "flex";
-
-          // 1. Clear editor completely to prepare for creating a new playlist
-          clearEditorForNewPlaylist();
-
-          // 2. Switch to My Playlists tab
-          switchTab("mylists");
-
-          // 3. Refresh user playlists table
-          loadMyPlaylists();
         } else {
           alert("บันทึกไม่สำเร็จ: " + (res.error || "เกิดข้อผิดพลาด"));
         }
@@ -3053,7 +3136,11 @@
 
     function closeRedeemModal() {
       document.getElementById("redeemResultModal").style.display = "none";
+      // Clear editor to prepare for new playlist
+      clearEditorForNewPlaylist();
+      // Switch to My Playlists tab
       switchTab("mylists");
+      // Sync and load latest playlists
       loadMyPlaylists();
     }
 
@@ -3066,39 +3153,42 @@
 
     async function loadMyPlaylists() {
       if (!currentUser || !currentUser.id) return;
-      const tbody = document.getElementById("myPlaylistsTableBody");
+      
+      // Step 1: Render local cache immediately so the user sees results without delay
+      renderMyPlaylistsTable();
 
+      // Step 2: Fetch latest from server and merge
       try {
         const resp = await fetch(HUB_SERVER + "/api/user/playlists?userId=" + encodeURIComponent(currentUser.id));
         const res = await resp.json();
 
-        if (!res.success || !res.playlists || res.playlists.length === 0) {
-          tbody.innerHTML = '<tr><td colspan="6" class="empty-placeholder">ยังไม่มีเพลย์ลิสต์ที่คุณบันทึกไว้</td></tr>';
-          return;
-        }
+        if (res.success && Array.isArray(res.playlists)) {
+          let local = getLocalUserPlaylists();
+          let mergedMap = new Map();
 
-        let html = "";
-        res.playlists.forEach(pl => {
-          const dateStr = pl.updatedAt ? new Date(pl.updatedAt).toLocaleDateString("th-TH") : "-";
-          const expStr = pl.expiry || "ไม่มีวันหมดอายุ";
-          html += '<tr>' +
-            '<td><b style="color: var(--text);">' + escapeHtml(pl.name) + '</b></td>' +
-            '<td><span class="code-display" style="font-size: 13px; padding: 2px 8px; margin: 0; display: inline-block;">' + escapeHtml(pl.redeemCode) + '</span></td>' +
-            '<td>' + (pl.channelCount || 0) + ' ช่อง</td>' +
-            '<td style="color: var(--text-muted);">' + escapeHtml(expStr) + '</td>' +
-            '<td style="color: var(--text-muted);">' + dateStr + '</td>' +
-            '<td style="text-align: center;">' +
-              '<div style="display: flex; gap: 4px; justify-content: center;">' +
-                '<button class="btn btn-primary btn-sm" onclick="loadPlaylistIntoEditor(\'' + escapeHtml(pl.redeemCode) + '\', \'' + escapeHtml(pl.id || '') + '\')" title="โหลดข้อมูลทั้งหมดเข้าตัวแก้ไข">✏ โหลด 100%</button>' +
-                '<button class="btn btn-secondary btn-sm" onclick="copyTextCode(\'' + escapeHtml(pl.redeemCode) + '\')" title="คัดลอกรหัส">📋 คัดลอก</button>' +
-                '<button class="btn btn-danger btn-sm" onclick="deleteUserPlaylist(\'' + escapeHtml(pl.id) + '\', \'' + escapeHtml(pl.redeemCode) + '\')" title="ลบ">🗑</button>' +
-              '</div>' +
-            '</td>' +
-          '</tr>';
-        });
-        tbody.innerHTML = html;
-      } catch (_) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-placeholder">ไม่สามารถดึงข้อมูลเพลย์ลิสต์จากเซิร์ฟเวอร์ได้</td></tr>';
+          // Add local items
+          local.forEach(item => {
+            const key = item.id || item.redeemCode;
+            if (key) mergedMap.set(key, item);
+          });
+
+          // Add/update with server items
+          res.playlists.forEach(item => {
+            const key = item.id || item.redeemCode;
+            if (key) {
+              const existing = mergedMap.get(key);
+              if (!existing || (item.updatedAt || 0) >= (existing.updatedAt || 0)) {
+                mergedMap.set(key, item);
+              }
+            }
+          });
+
+          const mergedList = Array.from(mergedMap.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+          localStorage.setItem("chillup_user_playlists_" + currentUser.id, JSON.stringify(mergedList));
+          renderMyPlaylistsTable(mergedList);
+        }
+      } catch (err) {
+        console.warn("loadMyPlaylists network fetch error:", err);
       }
     }
 
@@ -3176,6 +3266,8 @@
 
     async function deleteUserPlaylist(plId, code) {
       if (confirm("คุณต้องการลบเพลย์ลิสต์รหัส [" + code + "] ใช่หรือไม่?")) {
+        removeLocalUserPlaylist(plId, code);
+        renderMyPlaylistsTable();
         try {
           await fetch(HUB_SERVER + "/api/user/delete-playlist", {
             method: "POST",
