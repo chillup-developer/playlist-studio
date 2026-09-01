@@ -816,9 +816,7 @@
         <div class="action-bar" style="margin-bottom: 20px;">
           <div class="action-group">
             <button class="btn btn-primary btn-sm" onclick="openAddChannelModal()">+ เพิ่มช่อง</button>
-            <button class="btn btn-secondary btn-sm" onclick="openCustomUrlPlayer()" title="เปิดเครื่องเล่นสตรีมสำหรับทดสอบลิงก์" style="background: rgba(56, 189, 248, 0.12); color: var(--primary); border-color: rgba(56, 189, 248, 0.3);">▶️ เครื่องเล่นสตรีม (Player)</button>
             <button class="btn btn-secondary btn-sm" onclick="openImportModal()">📥 นำเข้า (M3U / URL)</button>
-            <button class="btn btn-secondary btn-sm" id="btnExpandSubPlaylists" onclick="expandAllSubPlaylists()" style="display: none; background: rgba(56, 189, 248, 0.12); color: var(--primary); border-color: var(--primary);">🔄 ขยายเพลย์ลิสต์ย่อย (<span id="nestedSubCount">0</span>)</button>
             <button class="btn btn-secondary btn-sm" onclick="openGroupSettingsModal()" id="btnGroupSettings">📁 จัดการรูปปกกลุ่ม (<span id="groupSettingsCount">0</span>)</button>
             <button class="btn btn-secondary btn-sm" id="btnCheckAllLinks" onclick="toggleCheckLinks()">⚡ ตรวจสอบลิงก์</button>
             <button class="btn btn-danger btn-sm" onclick="removeDeadChannels()">🗑️ ลบช่องเสีย</button>
@@ -1013,6 +1011,7 @@
             อาจเกิดจากสตรีมปิดชั่วคราว มีการบล็อก CORS หรือเบราว์เซอร์บล็อก Mixed Content (HTTP บน HTTPS)
           </div>
           <div style="display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; justify-content: center;">
+            <button type="button" class="btn btn-primary btn-sm" id="btnRetryWithProxy" onclick="playWithProxyMode()" style="background: var(--primary); color: #000; font-weight: 700;">⚡ เล่นผ่าน Proxy (Bypass CORS)</button>
             <button type="button" class="btn btn-secondary btn-sm" onclick="retryCurrentPlayerStream()">🔄 ลองใหม่</button>
             <button type="button" class="btn btn-secondary btn-sm" onclick="openStreamInNewTab()">🌐 เปิดลิงก์ตรง</button>
             <button type="button" class="btn btn-danger btn-sm" onclick="markCurrentPlayerStatus(false)">🔴 มาร์กว่าเสีย</button>
@@ -1036,6 +1035,12 @@
         </div>
 
         <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <!-- Proxy Toggle -->
+          <label style="display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; background: rgba(56, 189, 248, 0.1); padding: 4px 10px; border-radius: 6px; border: 1px solid rgba(56, 189, 248, 0.3); color: var(--primary); font-weight: 600;" title="เปิดใช้งานเมื่อเซิร์ฟเวอร์สตรีมบล็อก CORS ในเบราว์เซอร์">
+            <input type="checkbox" id="chkUseProxyMode" onchange="toggleProxyMode(this.checked)" style="cursor: pointer; accent-color: var(--primary);">
+            <span>⚡ Bypass CORS (Proxy)</span>
+          </label>
+
           <!-- Quality Selector -->
           <div style="display: flex; align-items: center; gap: 6px; font-size: 12px;">
             <span style="color: var(--text-muted);">คุณภาพ:</span>
@@ -2529,11 +2534,39 @@
 
     
     // =========================================================================
-    // 📺 STREAM PLAYER ENGINE & REAL-TIME DIAGNOSTICS (HLS.js & Native)
+    // 📺 STREAM PLAYER ENGINE & REAL-TIME DIAGNOSTICS (HLS.js & Native + CORS Proxy)
     // =========================================================================
     let hlsInstance = null;
     let currentPlayerChannelIndex = -1;
     let playerDiagInterval = null;
+    let isProxyPlaybackActive = false;
+    let currentRawStreamUrl = "";
+
+    function getStreamProxyUrl(targetUrl) {
+      if (!targetUrl) return "";
+      const norm = normalizePlaylistUrl(targetUrl);
+      const hub = (HUB_SERVER || "").trim().replace(/\/+$/, "");
+      if (hub && !hub.startsWith("file://") && !hub.includes("localhost")) {
+        return hub + "/api/stream-proxy?url=" + encodeURIComponent(norm);
+      }
+      return "https://corsproxy.io/?" + encodeURIComponent(norm);
+    }
+
+    function toggleProxyMode(active) {
+      isProxyPlaybackActive = active;
+      if (currentRawStreamUrl) {
+        startPlayback(currentRawStreamUrl, isProxyPlaybackActive);
+      }
+    }
+
+    function playWithProxyMode() {
+      const chk = document.getElementById("chkUseProxyMode");
+      if (chk) chk.checked = true;
+      isProxyPlaybackActive = true;
+      const urlInput = document.getElementById("playerUrlInput");
+      const url = urlInput ? urlInput.value.trim() : currentRawStreamUrl;
+      startPlayback(url, true);
+    }
 
     function openCustomUrlPlayer() {
       if (channels && channels.length > 0) {
@@ -2688,7 +2721,11 @@
       }
     }
 
-    function startPlayback(rawUrl) {
+    function startPlayback(rawUrl, forceProxy = isProxyPlaybackActive) {
+      currentRawStreamUrl = rawUrl || "";
+      isProxyPlaybackActive = !!forceProxy;
+      const chk = document.getElementById("chkUseProxyMode");
+      if (chk) chk.checked = isProxyPlaybackActive;
       destroyPlayer();
       setPlayerError(false);
 
@@ -2699,7 +2736,8 @@
         return;
       }
 
-      const url = normalizePlaylistUrl(rawUrl.trim());
+      const origUrl = normalizePlaylistUrl(rawUrl.trim());
+      const url = forceProxy ? getStreamProxyUrl(origUrl) : origUrl;
       const video = document.getElementById("studioVideoPlayer");
       if (!video) return;
 
@@ -2717,7 +2755,7 @@
 
       // Check for Hls.js support
       if (isHls && window.Hls && Hls.isSupported()) {
-        if (diagEngine) diagEngine.textContent = "HLS.js (MSE)";
+        if (diagEngine) diagEngine.textContent = isProxyPlaybackActive ? "HLS.js + ⚡Proxy" : "HLS.js (Direct)";
         hlsInstance = new Hls({
           enableWorker: true,
           lowLatencyMode: true,
@@ -2763,7 +2801,11 @@
               case Hls.ErrorTypes.NETWORK_ERROR:
                 console.error("Fatal network error in HLS:", data);
                 if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR || data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT) {
-                  setPlayerError(true, "ไม่สามารถดาวน์โหลด HLS Manifest ได้", "การเชื่อมต่อล้มเหลว หรือถูกบล็อกโดย CORS / นโยบายความปลอดภัยของเบราว์เซอร์");
+                  if (!isProxyPlaybackActive) {
+                    setPlayerError(true, "เซิร์ฟเวอร์สตรีมบล็อก CORS (เบราว์เซอร์เข้าถึงตรงไม่ได้)", "เบราว์เซอร์บล็อกการเข้าถึงเนื่องจากนโยบายความปลอดภัย (CORS) แต่ในแอป Android / กล่องทีวีจะเล่นได้ปกติ กดปุ่มด้านล่างเพื่อเล่นผ่าน Proxy ทันที");
+                  } else {
+                    setPlayerError(true, "ไม่สามารถดาวน์โหลด HLS Manifest ผ่าน Proxy ได้", "อาจเกิดจากสตรีมปิดชั่วคราว ลิงก์หมดอายุ หรือถูกบล็อกการเชื่อมต่อไปยังเซิร์ฟเวอร์ต้นทาง");
+                  }
                 } else {
                   hlsInstance.startLoad();
                 }
