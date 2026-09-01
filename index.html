@@ -654,7 +654,7 @@
     </a>
     <div class="header-tools">
       <button class="btn btn-ghost btn-sm" onclick="toggleTheme()" id="themeBtn" title="สลับธีม สว่าง/มืด">🌓 ธีม</button>
-      <button class="btn btn-ghost btn-sm" onclick="openServerConfigModal()" title="ตั้งค่าเซิร์ฟเวอร์">⚙️ Hub</button>
+      
     </div>
   </header>
 
@@ -1296,27 +1296,6 @@
     </div>
   </div>
 
-  <!-- MODAL: SERVER CONFIG -->
-  <div class="modal-backdrop" id="serverModal">
-    <div class="modal-box" style="max-width: 440px;">
-      <div class="modal-title">
-        <h3>ตั้งค่าเซิร์ฟเวอร์ Hub</h3>
-        <button class="btn btn-ghost btn-sm" onclick="closeServerConfigModal()">✕</button>
-      </div>
-      <div style="display: flex; flex-direction: column; gap: 14px;">
-        <div class="form-group">
-          <label class="form-label">Cloudflare Worker Hub URL</label>
-          <input type="text" id="serverHubUrlInput" placeholder="https://playlist-hub.yourdomain.workers.dev">
-          <div style="font-size: 11px; color: var(--text-faint); margin-top: 4px;">ใส่ URL ของ Worker หากเปิดใช้งานหน้าเว็บนี้จาก GitHub Pages หรือ Host อื่น</div>
-        </div>
-        <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;">
-          <button class="btn btn-secondary" onclick="closeServerConfigModal()">ยกเลิก</button>
-          <button class="btn btn-primary" onclick="saveServerConfig()">บันทึก</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- MODAL: PROFILE -->
   <div class="modal-backdrop" id="profileModal">
     <div class="modal-box" style="max-width: 380px;">
@@ -1344,10 +1323,8 @@
     <!-- LOGIC SCRIPT -->
   <script>
     const GOOGLE_CLIENT_ID = "701662894116-c4gslc2e99gmg9dhhivreedq32sbpdhh.apps.googleusercontent.com";
-    let HUB_SERVER = localStorage.getItem("chillup_hub_server") || "";
-    if (!HUB_SERVER || HUB_SERVER.startsWith("file://") || HUB_SERVER.includes("localhost") || HUB_SERVER.includes("github.io") || HUB_SERVER.includes("127.0.0.1")) {
-      HUB_SERVER = "https://chillup-playlist-hub.natee-bumrungsiri.workers.dev";
-    }
+    // ⚙️ เซิร์ฟเวอร์ Hub กำหนดตายตัวในโค้ดเพื่อความปลอดภัย (Hardcoded Server Endpoint)
+    const HUB_SERVER = "https://chillup-playlist-hub.natee-bumrungsiri.workers.dev";
 
     let currentUser = null;
     let channels = [];
@@ -1563,24 +1540,6 @@
       updateUserUI();
       closeProfileModal();
       loadMyPlaylists();
-    }
-
-    function openServerConfigModal() {
-      document.getElementById("serverHubUrlInput").value = HUB_SERVER;
-      document.getElementById("serverModal").style.display = "flex";
-    }
-    function closeServerConfigModal() {
-      document.getElementById("serverModal").style.display = "none";
-    }
-    function saveServerConfig() {
-      const url = document.getElementById("serverHubUrlInput").value.trim();
-      if (url) {
-        HUB_SERVER = url.endsWith("/") ? url.slice(0, -1) : url;
-        localStorage.setItem("chillup_hub_server", HUB_SERVER);
-        closeServerConfigModal();
-        loadMyPlaylists();
-        alert("✅ บันทึก URL เซิร์ฟเวอร์ Hub สำเร็จ: " + HUB_SERVER);
-      }
     }
 
     function switchTab(tab) {
