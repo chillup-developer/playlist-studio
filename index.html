@@ -799,6 +799,7 @@
           <div class="action-group">
             <button class="btn btn-primary btn-sm" onclick="openAddChannelModal()">+ เพิ่มช่อง</button>
             <button class="btn btn-secondary btn-sm" onclick="openImportModal()">📥 นำเข้า (M3U / URL)</button>
+            <button class="btn btn-secondary btn-sm" id="btnExpandSubPlaylists" onclick="expandAllSubPlaylists()" style="display: none; background: rgba(56, 189, 248, 0.12); color: var(--primary); border-color: var(--primary);">🔄 ขยายเพลย์ลิสต์ย่อย (<span id="nestedSubCount">0</span>)</button>
             <button class="btn btn-secondary btn-sm" onclick="openGroupSettingsModal()" id="btnGroupSettings">📁 จัดการรูปปกกลุ่ม (<span id="groupSettingsCount">0</span>)</button>
             <button class="btn btn-secondary btn-sm" id="btnCheckAllLinks" onclick="toggleCheckLinks()">⚡ ตรวจสอบลิงก์</button>
             <button class="btn btn-danger btn-sm" onclick="removeDeadChannels()">🗑️ ลบช่องเสีย</button>
@@ -1832,6 +1833,7 @@
       const total = channels.length;
       const alive = channels.filter(c => c.status === "alive").length;
       const dead = channels.filter(c => c.status === "dead").length;
+      const nested = channels.filter(c => c.isImport || isPotentialNestedPlaylist(c.url)).length;
       
       const groups = new Set();
       channels.forEach(c => groups.add(c.group || "General"));
@@ -1847,6 +1849,17 @@
 
       const deadEl = document.getElementById("deadCountText");
       if (deadEl) deadEl.textContent = dead;
+
+      const btnExpand = document.getElementById("btnExpandSubPlaylists");
+      const nestedSubCount = document.getElementById("nestedSubCount");
+      if (btnExpand) {
+        if (nested > 0) {
+          btnExpand.style.display = "inline-flex";
+          if (nestedSubCount) nestedSubCount.textContent = nested;
+        } else {
+          btnExpand.style.display = "none";
+        }
+      }
     }
 
     function renderGroupPills() {
@@ -1990,11 +2003,20 @@
         const logoImg = ch.logo ? 
           '<img src="' + escapeHtml(ch.logo) + '" class="channel-logo" onerror="handleLogoError(this)">' : '<div class="channel-logo" style="display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text-faint);">TV</div>';
 
+        const isNested = ch.isImport || isPotentialNestedPlaylist(ch.url);
+        const nestedBadge = isNested ? '<span style="background: rgba(56, 189, 248, 0.15); color: var(--primary); font-size: 10px; padding: 2px 6px; border-radius: 4px; margin-left: 6px; font-weight: 600;">🔗 ลิงก์นำเข้า</span>' : '';
+        const authorBadge = ch.author ? '<span style="font-size: 10px; color: var(--text-faint); margin-left: 6px;">👤 ' + escapeHtml(ch.author) + '</span>' : '';
+
+        const expandBtn = isNested ? 
+          '<button class="btn btn-primary btn-icon btn-sm" onclick="expandSingleSubPlaylist(' + origIdx + ')" title="📥 ดึงช่องทั้งหมดจากลิงก์นำเข้านี้ออกมา" style="background: var(--primary); color: #000;">📥</button>' : '';
+
         html += '<tr>' +
           '<td style="text-align: center; color: var(--text-faint); font-weight: 500;">' + (origIdx + 1) + '</td>' +
           '<td style="text-align: center;">' + logoImg + '</td>' +
           '<td>' +
-            '<div style="font-weight: 600; color: var(--text);">' + escapeHtml(ch.name || 'Channel') + '</div>' +
+            '<div style="font-weight: 600; color: var(--text); display: flex; align-items: center; flex-wrap: wrap;">' + 
+              escapeHtml(ch.name || 'Channel') + nestedBadge + authorBadge + 
+            '</div>' +
             '<div style="font-size: 11px; color: var(--text-muted); word-break: break-all; max-width: 340px; font-family: monospace;">' + escapeHtml(ch.url) + '</div>' +
           '</td>' +
           '<td>' +
@@ -2003,6 +2025,7 @@
           '<td>' + statusBadge + '</td>' +
           '<td style="text-align: center;">' +
             '<div style="display: flex; gap: 4px; justify-content: center;">' +
+              expandBtn +
               '<button class="btn btn-secondary btn-icon btn-sm" onclick="moveChannel(' + origIdx + ', -1)" title="เลื่อนขึ้น">⬆</button>' +
               '<button class="btn btn-secondary btn-icon btn-sm" onclick="moveChannel(' + origIdx + ', 1)" title="เลื่อนลง">⬇</button>' +
               '<button class="btn btn-secondary btn-icon btn-sm" onclick="testSingleLink(' + origIdx + ')" title="ทดสอบ">⚡</button>' +
@@ -2014,6 +2037,232 @@
       });
 
       tbody.innerHTML = html;
+    }
+
+    async function fetchRawPlaylistText(rawUrl) {
+      const url = normalizePlaylistUrl(rawUrl);
+      let content = "";
+      try {
+        const r = await fetch(url, { headers: { "Accept": "*/*" } });
+        if (r.ok) content = await r.text();
+      } catch (_) {}
+
+      if (!content || content.includes("<!DOCTYPE") || content.startsWith("<html") || content.length < 10) {
+        try {
+          const r2 = await fetch(HUB_SERVER + "/api/proxy", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ targetUrl: url })
+          });
+          if (r2.ok) {
+            const res = await r2.json();
+            if (res.success && res.data) content = res.data;
+          }
+        } catch (_) {}
+      }
+      return content;
+    }
+
+    function parseSubPlaylistContent(content, fallbackGroup, fallbackAuthor, fallbackLogo) {
+      const subChannels = [];
+      if (!content) return subChannels;
+
+      const jsonObjects = extractJsonObjects(content);
+      if (jsonObjects.length > 0) {
+        jsonObjects.forEach(obj => {
+          function traverseSub(groupObj, gName, gAuthor, gCover) {
+            if (!groupObj || typeof groupObj !== 'object') return;
+            const currentGName = groupObj.name || groupObj.title || groupObj.group || gName || fallbackGroup || "General";
+            const currentCover = groupObj.image || groupObj.logo || groupObj.icon || groupObj.cover || gCover || fallbackLogo || "";
+            const currentAuthor = groupObj.author || groupObj.creator || gAuthor || fallbackAuthor || "";
+
+            if (currentCover && currentGName) {
+              groupCovers[currentGName] = currentCover;
+            }
+
+            const directUrl = groupObj.url || groupObj.link || groupObj.stream || groupObj.streamUrl || "";
+            if (directUrl && (directUrl.startsWith("http") || directUrl.startsWith("rtmp") || directUrl.startsWith("rtsp") || directUrl.startsWith("mms") || directUrl.startsWith("udp"))) {
+              subChannels.push({
+                name: groupObj.name || groupObj.title || ("Channel " + (subChannels.length + 1)),
+                url: normalizePlaylistUrl(directUrl.trim()),
+                group: gName || currentGName || fallbackGroup || "General",
+                logo: currentCover,
+                author: currentAuthor,
+                referer: groupObj.referer || "",
+                userAgent: groupObj.userAgent || "",
+                isImport: groupObj.import === true || groupObj.import === "true" || isPotentialNestedPlaylist(directUrl),
+                status: "unknown"
+              });
+            }
+
+            const stations = groupObj.stations || groupObj.channels || groupObj.tracks || [];
+            if (Array.isArray(stations)) {
+              stations.forEach(st => {
+                if (!st || typeof st !== 'object') return;
+                const stUrl = st.url || st.link || st.stream || st.streamUrl || "";
+                if (stUrl && (stUrl.startsWith("http") || stUrl.startsWith("rtmp") || stUrl.startsWith("rtsp") || stUrl.startsWith("mms") || stUrl.startsWith("udp"))) {
+                  subChannels.push({
+                    name: st.name || st.title || ("Channel " + (subChannels.length + 1)),
+                    url: normalizePlaylistUrl(stUrl.trim()),
+                    group: st.group || st.groupTitle || currentGName || fallbackGroup || "General",
+                    logo: st.image || st.logo || st.icon || st.cover || currentCover || "",
+                    author: st.author || currentAuthor || "",
+                    referer: st.referer || "",
+                    userAgent: st.userAgent || "",
+                    isImport: st.import === true || st.import === "true" || isPotentialNestedPlaylist(stUrl),
+                    status: "unknown"
+                  });
+                }
+              });
+            }
+
+            if (Array.isArray(groupObj.groups)) {
+              groupObj.groups.forEach(subG => traverseSub(subG, currentGName, currentAuthor, currentCover));
+            }
+          }
+
+          if (Array.isArray(obj.groups)) {
+            obj.groups.forEach(g => traverseSub(g, obj.name || fallbackGroup || "General", obj.author || fallbackAuthor || "", obj.image || fallbackLogo || ""));
+          } else if (Array.isArray(obj)) {
+            obj.forEach(item => traverseSub(item, fallbackGroup || "General", fallbackAuthor || "", fallbackLogo || ""));
+          } else if (obj.stations || obj.channels || obj.tracks) {
+            traverseSub(obj, fallbackGroup || "General", obj.author || fallbackAuthor || "", obj.image || fallbackLogo || "");
+          } else if (obj.url || obj.streamUrl || obj.link) {
+            traverseSub(obj, fallbackGroup || "General", fallbackAuthor || "", fallbackLogo || "");
+          }
+        });
+      } else {
+        const lines = content.split(/\r?\n/);
+        let curName = "";
+        let curGroup = fallbackGroup || "General";
+        let curLogo = fallbackLogo || "";
+        let curAuthor = fallbackAuthor || "";
+        let curRef = "";
+        let curUa = "";
+
+        for (let i = 0; i < lines.length; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+          if (line.toUpperCase().startsWith("#EXTINF")) {
+            const g = extractTvgAttr(line, "group-title") || extractTvgAttr(line, "group");
+            if (g) curGroup = g;
+            const lg = extractTvgAttr(line, "tvg-logo") || extractTvgAttr(line, "logo");
+            if (lg) curLogo = lg;
+            const a = extractTvgAttr(line, "author") || extractTvgAttr(line, "artist");
+            if (a) curAuthor = a;
+            const comma = line.lastIndexOf(",");
+            if (comma !== -1 && comma < line.length - 1) {
+              curName = line.substring(comma + 1).trim();
+            }
+          } else if (line.toUpperCase().startsWith("#EXTGRP:")) {
+            curGroup = line.substring(8).trim() || curGroup;
+          } else if (!line.startsWith("#")) {
+            let sUrl = normalizePlaylistUrl(line);
+            if (sUrl.startsWith("http") || sUrl.startsWith("rtmp") || sUrl.startsWith("rtsp") || sUrl.startsWith("mms") || sUrl.startsWith("udp")) {
+              subChannels.push({
+                name: curName || ("Channel " + (subChannels.length + 1)),
+                url: sUrl,
+                group: curGroup || fallbackGroup || "General",
+                logo: curLogo,
+                author: curAuthor,
+                referer: curRef,
+                userAgent: curUa,
+                isImport: isPotentialNestedPlaylist(sUrl),
+                status: "unknown"
+              });
+              curName = "";
+              curGroup = fallbackGroup || "General";
+              curLogo = fallbackLogo || "";
+              curAuthor = fallbackAuthor || "";
+            }
+          }
+        }
+      }
+      return subChannels;
+    }
+
+    async function expandSingleSubPlaylist(idx) {
+      const ch = channels[idx];
+      if (!ch) return;
+
+      try {
+        const content = await fetchRawPlaylistText(ch.url);
+        if (!content || !content.trim()) {
+          alert("ไม่สามารถดึงข้อมูลจากเพลย์ลิสต์ย่อยนี้ได้: " + ch.url);
+          return;
+        }
+
+        const subChannels = parseSubPlaylistContent(content, ch.group, ch.author, ch.logo);
+
+        if (subChannels.length > 0) {
+          channels.splice(idx, 1, ...subChannels);
+          renderChannels();
+          renderGroupPills();
+          updateStats();
+          alert("✅ ขยายเพลย์ลิสต์ [" + (ch.name || "") + "] สำเร็จ ได้ทั้งหมด " + subChannels.length + " ช่อง!");
+        } else {
+          alert("⚠️ ไม่พบช่องรายการข้างในลิงก์นี้");
+        }
+      } catch (e) {
+        alert("เกิดข้อผิดพลาดในการดึงข้อมูล: " + e.message);
+      }
+    }
+
+    async function expandAllSubPlaylists() {
+      const importIndices = [];
+      channels.forEach((c, i) => {
+        if (c.isImport || isPotentialNestedPlaylist(c.url)) {
+          importIndices.push(i);
+        }
+      });
+
+      if (importIndices.length === 0) {
+        alert("ไม่พบลิงก์นำเข้าเพลย์ลิสต์ย่อยที่สามารถขยายได้");
+        return;
+      }
+
+      if (!confirm("พบลิงก์นำเข้าเพลย์ลิสต์ย่อยทั้งหมด " + importIndices.length + " ลิงก์ คุณต้องการดึงช่องทั้งหมดออกมาใส่ในเพลย์ลิสต์นี้ใช่หรือไม่?")) {
+        return;
+      }
+
+      const btn = document.getElementById("btnExpandSubPlaylists");
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = "⏳ กำลังดึงช่อง...";
+      }
+
+      let totalExpanded = 0;
+      // Process backwards to preserve correct indices
+      for (let k = importIndices.length - 1; k >= 0; k--) {
+        const idx = importIndices[k];
+        const ch = channels[idx];
+        if (!ch) continue;
+
+        try {
+          const content = await fetchRawPlaylistText(ch.url);
+          if (!content || !content.trim()) continue;
+
+          const subChannels = parseSubPlaylistContent(content, ch.group, ch.author, ch.logo);
+          if (subChannels.length > 0) {
+            channels.splice(idx, 1, ...subChannels);
+            totalExpanded += subChannels.length;
+          }
+        } catch (_) {}
+      }
+
+      if (btn) {
+        btn.disabled = false;
+      }
+
+      renderChannels();
+      renderGroupPills();
+      updateStats();
+
+      if (totalExpanded > 0) {
+        alert("🎉 ดึงช่องสำเร็จทั้งหมด " + totalExpanded + " ช่อง!");
+      } else {
+        alert("⚠️ ไม่สามารถดึงช่องเพิ่มเติมจากลิงก์นำเข้าได้");
+      }
     }
 
     function selectGroup(g) {
@@ -2321,23 +2570,80 @@
       reader.readAsText(file, "UTF-8");
     }
 
-    async function fetchPlaylistFromUrl() {
-      let url = (document.getElementById("importUrlInput").value || "").trim();
-      if (!url) {
-        alert("กรุณาระบุ URL ของเพลย์ลิสต์");
-        return;
+    function normalizePlaylistUrl(rawUrl) {
+      if (!rawUrl) return "";
+      let url = rawUrl.trim();
+
+      // 1. Google Drive view/open/uc ID
+      if (url.includes("drive.google.com") || url.includes("docs.google.com")) {
+        let driveId = null;
+        const fileDMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+        if (fileDMatch) driveId = fileDMatch[1];
+        if (!driveId) {
+          const idParam = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+          if (idParam) driveId = idParam[1];
+        }
+        if (!driveId) {
+          const docDMatch = url.match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+          if (docDMatch) return "https://docs.google.com/document/d/" + docDMatch[1] + "/export?format=txt";
+          const sheetDMatch = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+          if (sheetDMatch) return "https://docs.google.com/spreadsheets/d/" + sheetDMatch[1] + "/export?format=csv";
+        }
+        if (driveId) {
+          return "https://drive.google.com/uc?export=download&id=" + driveId;
+        }
       }
 
-      // Clean known cloud links (GitHub blob -> raw, Dropbox dl=1)
-      if (url.includes("github.com/") && url.includes("/blob/")) {
-        url = url.replace("github.com/", "raw.githubusercontent.com/").replace("/blob/", "/");
+      // 2. Pastebin
+      if (url.includes("pastebin.com/") && !url.includes("pastebin.com/raw/")) {
+        const pId = url.split("pastebin.com/")[1].split(/[?&#]/)[0].trim();
+        if (pId) return "https://pastebin.com/raw/" + pId;
       }
+
+      // 3. GitHub blob
+      if (url.includes("github.com/") && url.includes("/blob/")) {
+        return url.replace("github.com/", "raw.githubusercontent.com/").replace("/blob/", "/");
+      }
+
+      // 4. Dropbox
       if (url.includes("dropbox.com/")) {
         url = url.replace("?dl=0", "?dl=1");
         if (!url.includes("?dl=1") && !url.includes("?raw=1")) {
           url += (url.includes("?") ? "&dl=1" : "?dl=1");
         }
+        return url;
       }
+
+      // 5. Scheme prefix
+      if (!url.startsWith("http://") && !url.startsWith("https://") && !url.startsWith("rtmp://") && !url.startsWith("rtsp://") && !url.startsWith("mms://") && !url.startsWith("udp://")) {
+        if (url.includes(".") || url.includes(":")) {
+          return "https://" + url;
+        }
+      }
+
+      return url;
+    }
+
+    function isPotentialNestedPlaylist(url) {
+      if (!url) return false;
+      const lower = url.toLowerCase().split('?')[0];
+      if (lower.endsWith(".m3u") || lower.endsWith(".m3u8") || lower.endsWith(".w3u") || lower.endsWith(".json") || lower.endsWith(".txt") || lower.endsWith(".csv")) {
+        return true;
+      }
+      if (url.includes("drive.google.com") || url.includes("docs.google.com") || url.includes("pastebin.com") || url.includes("github") || url.includes("tinyurl.com") || url.includes("bit.ly") || url.includes("shorturl") || url.includes("is.gd") || url.includes("t.ly")) {
+        return true;
+      }
+      return false;
+    }
+
+    async function fetchPlaylistFromUrl() {
+      let rawUrl = (document.getElementById("importUrlInput").value || "").trim();
+      if (!rawUrl) {
+        alert("กรุณาระบุ URL ของเพลย์ลิสต์");
+        return;
+      }
+
+      const url = normalizePlaylistUrl(rawUrl);
 
       const btn = document.getElementById("btnFetchUrl");
       const msg = document.getElementById("importLoadingMsg");
@@ -2355,8 +2661,8 @@
           }
         } catch (_) {}
 
-        // 2. If blocked by CORS, fetch via Hub Proxy
-        if (!content || content.includes("<!DOCTYPE") || content.startsWith("<html")) {
+        // 2. If blocked by CORS or HTML error returned, fetch via Hub Proxy
+        if (!content || content.includes("<!DOCTYPE") || content.startsWith("<html") || content.length < 10) {
           try {
             const r2 = await fetch(HUB_SERVER + "/api/proxy", {
               method: "POST",
@@ -2412,29 +2718,118 @@
       return match ? match[1].trim() : "";
     }
 
-    // Comprehensive Parser supporting M3U, M3U8, W3U, JSON, CSV, TXT
+    // Extract balanced JSON objects from raw text (handles trailing commas, lenient structures, arrays, and concatenated objects)
+    function extractJsonObjects(text) {
+      const results = [];
+      if (!text) return results;
+
+      let clean = text.trim();
+      if (clean.charCodeAt(0) === 0xFEFF) clean = clean.slice(1).trim();
+
+      // Clean trailing commas in JSON: ", ]" -> "]" and ", }" -> "}"
+      const sanitizeJson = (str) => {
+        return str
+          .replace(/\/\*[\s\S]*?\*\//g, '')
+          .replace(/(^|[^:])\/\/.*$/gm, '$1')
+          .replace(/,\s*([\]}])/g, '$1');
+      };
+
+      // Try 1: Direct full parse
+      try {
+        const obj = JSON.parse(clean);
+        if (obj && typeof obj === 'object') {
+          results.push(obj);
+          return results;
+        }
+      } catch (_) {}
+
+      // Try 2: Sanitize comments and trailing commas
+      try {
+        const sanitized = sanitizeJson(clean);
+        const obj = JSON.parse(sanitized);
+        if (obj && typeof obj === 'object') {
+          results.push(obj);
+          return results;
+        }
+      } catch (_) {}
+
+      // Try 3: Bracket-balanced scanner for { ... } and [ ... ]
+      let i = 0;
+      const n = clean.length;
+      while (i < n) {
+        const ch = clean[i];
+        if (ch === '{' || ch === '[') {
+          const openChar = ch;
+          const closeChar = ch === '{' ? '}' : ']';
+          let depth = 0;
+          let inString = false;
+          let escape = false;
+          let startIdx = i;
+
+          for (let j = i; j < n; j++) {
+            const c = clean[j];
+            if (escape) {
+              escape = false;
+              continue;
+            }
+            if (c === '\\') {
+              escape = true;
+              continue;
+            }
+            if (c === '"') {
+              inString = !inString;
+              continue;
+            }
+            if (!inString) {
+              if (c === openChar) depth++;
+              else if (c === closeChar) {
+                depth--;
+                if (depth === 0) {
+                  const candidate = clean.slice(startIdx, j + 1);
+                  try {
+                    const parsed = JSON.parse(candidate);
+                    results.push(parsed);
+                  } catch (_) {
+                    try {
+                      const parsed = JSON.parse(sanitizeJson(candidate));
+                      results.push(parsed);
+                    } catch (_) {}
+                  }
+                  i = j;
+                  break;
+                }
+              }
+            }
+          }
+        }
+        i++;
+      }
+
+      return results;
+    }
+
+    // Comprehensive Parser matching Android IPTVParserEngine
     function parseAndAppendPlaylist(content) {
       if (!content) return 0;
       
-      // Strip UTF-8 BOM if present
       let raw = content.charCodeAt(0) === 0xFEFF ? content.slice(1) : content;
       raw = raw.trim();
 
       let addedCount = 0;
+      const jsonObjects = extractJsonObjects(raw);
 
-      // 1. Check JSON / W3U / Wiseplay Format
-      if (raw.startsWith("{") || raw.startsWith("[")) {
-        try {
-          const obj = JSON.parse(raw);
-          
-          // Set playlist title / author / image / info / contact / url if available in JSON
+      if (jsonObjects.length > 0) {
+        jsonObjects.forEach(obj => {
+          if (!obj) return;
+
+          // Extract Playlist Metadata
           if (obj.name) {
             const nameInput = document.getElementById("plName");
             if (nameInput && (!nameInput.value || nameInput.value === "My Playlist")) nameInput.value = obj.name;
           }
           if (obj.author) {
             const authorInput = document.getElementById("plAuthor");
-            if (authorInput) authorInput.value = obj.author;
+            if (authorInput && !authorInput.value) authorInput.value = obj.author;
           }
           if (obj.image || obj.logo || obj.poster) {
             const imgInput = document.getElementById("plImage");
@@ -2456,87 +2851,100 @@
             Object.assign(groupCovers, obj.groupCovers);
           }
 
-          // Case A: { groups: [ { name, image, stations: [...] } ] }
-          if (obj.groups && Array.isArray(obj.groups)) {
-            obj.groups.forEach(g => {
-              const gName = g.name || g.title || g.group || "General";
-              if (g.image || g.logo || g.icon) {
-                groupCovers[gName] = g.image || g.logo || g.icon;
-              }
-              const items = g.stations || g.channels || g.tracks || [];
-              if (Array.isArray(items)) {
-                items.forEach(st => {
-                  const url = st.url || st.link || st.streamUrl || "";
-                  if (url && (url.startsWith("http") || url.startsWith("rtmp") || url.startsWith("rtsp"))) {
-                    channels.push({
-                      name: st.name || st.title || ("Channel " + (channels.length + 1)),
-                      url: url.trim(),
-                      group: gName,
-                      logo: st.image || st.logo || st.icon || "",
-                      referer: st.referer || (st.http && st.http.referer) || "",
-                      userAgent: st.userAgent || st.user_agent || (st.http && st.http.userAgent) || "",
-                      status: "unknown"
-                    });
-                    addedCount++;
-                  }
-                });
-              }
-            });
-          }
-          // Case B: Direct Array [ { name, url, group, logo } ]
-          else if (Array.isArray(obj)) {
-            obj.forEach(st => {
-              const url = st.url || st.link || st.streamUrl || "";
-              if (url && (url.startsWith("http") || url.startsWith("rtmp") || url.startsWith("rtsp"))) {
-                channels.push({
-                  name: st.name || st.title || ("Channel " + (channels.length + 1)),
-                  url: url.trim(),
-                  group: st.group || st.groupTitle || "General",
-                  logo: st.image || st.logo || st.icon || "",
-                  referer: st.referer || "",
-                  userAgent: st.userAgent || st.user_agent || "",
-                  status: "unknown"
-                });
-                addedCount++;
-              }
-            });
-          }
-          // Case C: { stations: [ ... ] } or { channels: [ ... ] }
-          else if (obj.stations || obj.channels || obj.tracks) {
-            const items = obj.stations || obj.channels || obj.tracks || [];
-            if (Array.isArray(items)) {
-              items.forEach(st => {
-                const url = st.url || st.link || st.streamUrl || "";
-                if (url && (url.startsWith("http") || url.startsWith("rtmp") || url.startsWith("rtsp"))) {
+          // Recursive helper to traverse groups
+          function traverseGroup(groupObj, inheritedGroupName, inheritedAuthor, inheritedCover) {
+            if (!groupObj || typeof groupObj !== 'object') return;
+
+            const gName = groupObj.name || groupObj.title || groupObj.group || inheritedGroupName || "General";
+            const gCover = groupObj.image || groupObj.logo || groupObj.icon || groupObj.cover || inheritedCover || "";
+            const gAuthor = groupObj.author || groupObj.creator || inheritedAuthor || "";
+
+            if (gCover && gName) {
+              groupCovers[gName] = gCover;
+            }
+
+            // Direct group URL / import link (e.g. { "name": "VIP Gojek", "image": "...", "url": "https://...", "import": "true", "author": "..." })
+            const directUrl = groupObj.url || groupObj.link || groupObj.stream || groupObj.streamUrl || "";
+            const isImport = groupObj.import === true || groupObj.import === "true" || isPotentialNestedPlaylist(directUrl);
+            if (directUrl && (directUrl.startsWith("http") || directUrl.startsWith("rtmp") || directUrl.startsWith("rtsp") || directUrl.startsWith("mms") || directUrl.startsWith("udp"))) {
+              channels.push({
+                name: groupObj.name || groupObj.title || ("Channel " + (channels.length + 1)),
+                url: normalizePlaylistUrl(directUrl.trim()),
+                group: inheritedGroupName || gName || "General",
+                logo: gCover,
+                author: gAuthor,
+                referer: groupObj.referer || (groupObj.http && groupObj.http.referer) || "",
+                userAgent: groupObj.userAgent || groupObj.user_agent || (groupObj.http && groupObj.http.userAgent) || "",
+                isImport: isImport,
+                status: "unknown"
+              });
+              addedCount++;
+            }
+
+            // Stations / Channels array
+            const stations = groupObj.stations || groupObj.channels || groupObj.tracks || [];
+            if (Array.isArray(stations)) {
+              stations.forEach(st => {
+                if (!st || typeof st !== 'object') return;
+                const stUrl = st.url || st.link || st.stream || st.streamUrl || "";
+                if (stUrl && (stUrl.startsWith("http") || stUrl.startsWith("rtmp") || stUrl.startsWith("rtsp") || stUrl.startsWith("mms") || stUrl.startsWith("udp"))) {
+                  const stImport = st.import === true || st.import === "true" || isPotentialNestedPlaylist(stUrl);
                   channels.push({
                     name: st.name || st.title || ("Channel " + (channels.length + 1)),
-                    url: url.trim(),
-                    group: st.group || "General",
-                    logo: st.image || st.logo || "",
-                    referer: st.referer || "",
-                    userAgent: st.userAgent || "",
+                    url: normalizePlaylistUrl(stUrl.trim()),
+                    group: st.group || st.groupTitle || gName || "General",
+                    logo: st.image || st.logo || st.icon || st.cover || gCover || "",
+                    author: st.author || gAuthor || "",
+                    referer: st.referer || (st.http && st.http.referer) || "",
+                    userAgent: st.userAgent || st.user_agent || (st.http && st.http.userAgent) || "",
+                    isImport: stImport,
                     status: "unknown"
                   });
                   addedCount++;
                 }
               });
             }
+
+            // Nested subgroups
+            if (Array.isArray(groupObj.groups)) {
+              groupObj.groups.forEach(subG => traverseGroup(subG, gName, gAuthor, gCover));
+            }
           }
 
-          if (addedCount > 0) {
-            updateCoverPreview();
-            currentPage = 1;
-            renderChannels();
-            return addedCount;
+          // Case A: Root has groups array
+          if (Array.isArray(obj.groups)) {
+            const rootAuthor = obj.author || "";
+            const rootCover = obj.image || obj.logo || "";
+            obj.groups.forEach(g => traverseGroup(g, obj.name || "General", rootAuthor, rootCover));
           }
-        } catch (_) {}
+          // Case B: Direct Array of channel objects
+          else if (Array.isArray(obj)) {
+            obj.forEach(item => traverseGroup(item, "General", "", ""));
+          }
+          // Case C: Object has stations/channels directly
+          else if (obj.stations || obj.channels || obj.tracks) {
+            traverseGroup(obj, "General", obj.author || "", obj.image || "");
+          }
+          // Case D: Single Channel Object
+          else if (obj.url || obj.streamUrl || obj.link) {
+            traverseGroup(obj, "General", "", "");
+          }
+        });
+
+        if (addedCount > 0) {
+          updateCoverPreview();
+          currentPage = 1;
+          renderChannels();
+          return addedCount;
+        }
       }
 
-      // 2. Process Line-by-Line (M3U / M3U8 / TXT / CSV)
+      // 2. Process Line-by-Line (M3U, M3U8, Delimited TXT, CSV)
       const lines = raw.split(/\r?\n/);
       let curName = "";
       let curGroup = "General";
       let curLogo = "";
+      let curAuthor = "";
       let curReferer = "";
       let curUa = "";
 
@@ -2544,17 +2952,17 @@
         const line = lines[i].trim();
         if (!line) continue;
 
-        // Header directive: #EXTM3U (extract header metadata)
+        // Header directive: #EXTM3U / #PLAYLIST:
         if (line.toUpperCase().startsWith("#EXTM3U") || line.toUpperCase().startsWith("#PLAYLIST:")) {
           const plN = extractTvgAttr(line, "name") || extractTvgAttr(line, "x-tvg-name") || extractTvgAttr(line, "title");
           if (plN) {
             const nameInput = document.getElementById("plName");
             if (nameInput && (!nameInput.value || nameInput.value === "My Playlist")) nameInput.value = plN;
           }
-          const plA = extractTvgAttr(line, "author") || extractTvgAttr(line, "creator");
+          const plA = extractTvgAttr(line, "author") || extractTvgAttr(line, "creator") || extractTvgAttr(line, "artist");
           if (plA) {
             const authorInput = document.getElementById("plAuthor");
-            if (authorInput) authorInput.value = plA;
+            if (authorInput && !authorInput.value) authorInput.value = plA;
           }
           const plImg = extractTvgAttr(line, "image") || extractTvgAttr(line, "logo") || extractTvgAttr(line, "poster") || extractTvgAttr(line, "tvg-logo");
           if (plImg) {
@@ -2577,17 +2985,23 @@
             if (urlInput && !urlInput.value) urlInput.value = plUrl;
           }
         }
-        // Header directive: #EXTINF
+        // Directives: #EXTINF
         else if (line.toUpperCase().startsWith("#EXTINF:") || line.toUpperCase().startsWith("#EXTINF")) {
-          // Extract Group
           const grp = extractTvgAttr(line, "group-title") || extractTvgAttr(line, "group");
           if (grp) curGroup = grp;
 
-          // Extract Logo
           const lg = extractTvgAttr(line, "tvg-logo") || extractTvgAttr(line, "logo");
           if (lg) curLogo = lg;
 
-          // Extract Name
+          const auth = extractTvgAttr(line, "author") || extractTvgAttr(line, "artist") || extractTvgAttr(line, "creator");
+          if (auth) curAuthor = auth;
+
+          const ref = extractTvgAttr(line, "http-referrer") || extractTvgAttr(line, "referer");
+          if (ref) curReferer = ref;
+
+          const ua = extractTvgAttr(line, "http-user-agent") || extractTvgAttr(line, "user-agent");
+          if (ua) curUa = ua;
+
           const commaIdx = line.lastIndexOf(",");
           if (commaIdx !== -1 && commaIdx < line.length - 1) {
             curName = line.substring(commaIdx + 1).trim();
@@ -2596,10 +3010,25 @@
             if (tvgName) curName = tvgName;
           }
         } 
-        // Group directive: #EXTGRP
-        else if (line.toUpperCase().startsWith("#EXTGRP:")) {
-          const g = line.substring(8).trim();
+        // Group directive: #EXTGRP / #EXT-X-GROUP-TITLE
+        else if (line.toUpperCase().startsWith("#EXTGRP:") || line.toUpperCase().startsWith("#EXT-X-GROUP-TITLE:")) {
+          const g = line.split(":")[1].trim();
           if (g) curGroup = g;
+        }
+        // Author directive: #EXTAUTHOR / #EXTART
+        else if (line.toUpperCase().startsWith("#EXTAUTHOR:") || line.toUpperCase().startsWith("#EXTART:")) {
+          const a = line.split(":")[1].trim();
+          if (a) curAuthor = a;
+        }
+        // Logo directive: #EXTLOGO / #EXTIMAGE
+        else if (line.toUpperCase().startsWith("#EXTLOGO:") || line.toUpperCase().startsWith("#EXTIMAGE:")) {
+          const l = line.split(":")[1].trim();
+          if (l) curLogo = l;
+        }
+        // Name directive: #EXTNAME
+        else if (line.toUpperCase().startsWith("#EXTNAME:")) {
+          const n = line.substring(9).trim();
+          if (n) curName = n;
         }
         // VLC / HTTP Headers directives
         else if (line.toUpperCase().startsWith("#EXTVLCOPT:") || line.toUpperCase().startsWith("#EXTHTTP:")) {
@@ -2611,21 +3040,33 @@
             curReferer = line.split(/referr?er=/i)[1].trim();
           }
         } 
+        // Category headers like: "News,#genre#" or "[News]"
+        else if (line.includes("#genre#")) {
+          curGroup = line.replace("#genre#", "").replace(/[,|]/g, "").trim() || "General";
+        }
         // Stream URL or Plain Text (Name, URL) line
         else if (!line.startsWith("#")) {
           let streamUrl = line;
           let channelName = curName;
           let channelGroup = curGroup || "General";
           let channelLogo = curLogo;
+          let channelAuthor = curAuthor;
           let channelReferer = curReferer;
           let channelUa = curUa;
 
-          // Check if line is formatted as: "Channel Name, http://url" or "Channel Name | http://url"
-          if (!streamUrl.startsWith("http://") && !streamUrl.startsWith("https://") && !streamUrl.startsWith("rtmp://") && !streamUrl.startsWith("rtsp://")) {
+          // Delimited line parsing (CSV, TSV, |, $, #)
+          if (!streamUrl.startsWith("http://") && !streamUrl.startsWith("https://") && !streamUrl.startsWith("rtmp://") && !streamUrl.startsWith("rtsp://") && !streamUrl.startsWith("mms://") && !streamUrl.startsWith("udp://")) {
             if (streamUrl.includes(",") && (streamUrl.includes("http://") || streamUrl.includes("https://"))) {
               const parts = streamUrl.split(",");
-              channelName = parts[0].trim();
-              streamUrl = parts.slice(1).join(",").trim();
+              if (parts.length >= 3 && (parts[2].includes("http://") || parts[2].includes("https://"))) {
+                // Group, Name, URL format
+                channelGroup = parts[0].trim() || "General";
+                channelName = parts[1].trim();
+                streamUrl = parts.slice(2).join(",").trim();
+              } else {
+                channelName = parts[0].trim();
+                streamUrl = parts.slice(1).join(",").trim();
+              }
             } else if (streamUrl.includes("|") && (streamUrl.includes("http://") || streamUrl.includes("https://"))) {
               const parts = streamUrl.split("|");
               if (!parts[0].startsWith("http")) {
@@ -2636,6 +3077,14 @@
               const parts = streamUrl.split("\t");
               channelName = parts[0].trim();
               streamUrl = parts.slice(1).join("\t").trim();
+            } else if (streamUrl.includes("$") && (streamUrl.includes("http://") || streamUrl.includes("https://"))) {
+              const parts = streamUrl.split("$");
+              channelName = parts[0].trim();
+              streamUrl = parts.slice(1).join("$").trim();
+            } else if (streamUrl.includes("#") && (streamUrl.includes("http://") || streamUrl.includes("https://"))) {
+              const parts = streamUrl.split("#");
+              channelName = parts[0].trim();
+              streamUrl = parts.slice(1).join("#").trim();
             }
           }
 
@@ -2657,14 +3106,19 @@
             });
           }
 
+          streamUrl = normalizePlaylistUrl(streamUrl);
+
           if (streamUrl.startsWith("http://") || streamUrl.startsWith("https://") || streamUrl.startsWith("rtmp://") || streamUrl.startsWith("rtsp://") || streamUrl.startsWith("mms://") || streamUrl.startsWith("udp://")) {
+            const isImport = isPotentialNestedPlaylist(streamUrl);
             channels.push({
               name: channelName || ("Channel " + (channels.length + 1)),
               url: streamUrl,
               group: channelGroup || "General",
               logo: channelLogo || "",
+              author: channelAuthor || "",
               referer: channelReferer || "",
               userAgent: channelUa || "",
+              isImport: isImport,
               status: "unknown"
             });
             addedCount++;
@@ -2673,6 +3127,7 @@
             curName = "";
             curGroup = "General";
             curLogo = "";
+            curAuthor = "";
             curReferer = "";
             curUa = "";
           }
