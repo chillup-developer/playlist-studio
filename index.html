@@ -1360,6 +1360,22 @@
     let isCheckingLinks = false;
     let checkLinksAbortController = null;
 
+    function updateCheckButtonLabel() {
+      const btn = document.getElementById("btnCheckAllLinks");
+      if (!btn) return;
+      if (isCheckingLinks) {
+        btn.innerHTML = "⏹️ หยุดตรวจสอบ";
+        btn.className = "btn btn-danger btn-sm";
+      } else {
+        if (activeGroupFilter !== "ALL") {
+          btn.innerHTML = "⚡ ตรวจสอบกลุ่ม [" + escapeHtml(activeGroupFilter) + "]";
+        } else {
+          btn.innerHTML = "⚡ ตรวจสอบลิงก์ทั้งหมด";
+        }
+        btn.className = "btn btn-secondary btn-sm";
+      }
+    }
+
     function toggleCheckLinks() {
       if (isCheckingLinks) {
         stopCheckLinks();
@@ -1374,11 +1390,7 @@
         try { checkLinksAbortController.abort(); } catch (_) {}
         checkLinksAbortController = null;
       }
-      const btn = document.getElementById("btnCheckAllLinks");
-      if (btn) {
-        btn.innerHTML = "⚡ ตรวจสอบลิงก์";
-        btn.className = "btn btn-secondary btn-sm";
-      }
+      updateCheckButtonLabel();
       const statusText = document.getElementById("healthStatusText");
       if (statusText) {
         statusText.textContent = "⏹️ หยุดการตรวจสอบสถานะแล้ว";
@@ -1675,6 +1687,7 @@
 
       updateStats();
       renderGroupPills();
+      updateCheckButtonLabel();
 
       const totalItems = filtered.length;
       const paginationBar = document.getElementById("channelPaginationBar");
@@ -1789,9 +1802,19 @@
         return;
       }
 
+      const targetChannels = activeGroupFilter === "ALL" 
+        ? channels 
+        : channels.filter(ch => (ch.group || "General") === activeGroupFilter);
+
+      if (targetChannels.length === 0) {
+        alert("ไม่มีช่องรายการในกลุ่ม [" + activeGroupFilter + "] ให้ตรวจสอบ");
+        return;
+      }
+
       if (isCheckingLinks) return;
       isCheckingLinks = true;
 
+      const groupLabel = activeGroupFilter === "ALL" ? "ทุกช่อง" : "กลุ่ม [" + activeGroupFilter + "]";
       const btn = document.getElementById("btnCheckAllLinks");
       if (btn) {
         btn.innerHTML = "⏹️ หยุดตรวจสอบ";
@@ -1805,14 +1828,14 @@
       if (progressBg) progressBg.style.display = "block";
       if (statusText) {
         statusText.style.display = "block";
-        statusText.textContent = "กำลังเริ่มตรวจสอบสถานะช่อง...";
+        statusText.textContent = "กำลังเริ่มตรวจสอบสถานะ" + groupLabel + "...";
       }
       if (progressFill) progressFill.style.width = "0%";
 
-      const total = channels.length;
+      const total = targetChannels.length;
       let completed = 0;
       const concurrency = 4;
-      let queue = channels.map((ch, idx) => ({ ch, idx }));
+      let queue = targetChannels.map((ch, idx) => ({ ch, idx }));
 
       async function worker() {
         while (queue.length > 0 && isCheckingLinks) {
@@ -1830,7 +1853,7 @@
           completed++;
           const pct = Math.round((completed / total) * 100);
           if (progressFill) progressFill.style.width = pct + "%";
-          if (statusText) statusText.textContent = "กำลังตรวจสอบ... " + completed + "/" + total + " ช่อง (" + pct + "%)";
+          if (statusText) statusText.textContent = "กำลังตรวจสอบ" + groupLabel + "... " + completed + "/" + total + " ช่อง (" + pct + "%)";
           renderChannels();
         }
       }
@@ -1843,11 +1866,8 @@
 
       if (isCheckingLinks) {
         isCheckingLinks = false;
-        if (btn) {
-          btn.innerHTML = "⚡ ตรวจสอบลิงก์";
-          btn.className = "btn btn-secondary btn-sm";
-        }
-        if (statusText) statusText.textContent = "✅ ตรวจสอบสถานะครบทั้งหมด " + total + " ช่องแล้ว";
+        updateCheckButtonLabel();
+        if (statusText) statusText.textContent = "✅ ตรวจสอบสถานะ" + groupLabel + " ครบ " + total + " ช่องแล้ว";
         setTimeout(() => {
           if (!isCheckingLinks) {
             if (progressBg) progressBg.style.display = "none";
