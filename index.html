@@ -725,6 +725,24 @@
     <!-- TAB 1: PLAYLIST EDITOR -->
     <div id="viewEditor">
       <div class="card">
+
+        <!-- Banner for Editing Existing Playlist Mode -->
+        <div id="editingModeBanner" style="display: none; background: rgba(56, 189, 248, 0.1); border: 1px solid var(--primary); border-radius: 8px; padding: 10px 14px; margin-bottom: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 20px;">✏️</span>
+            <div>
+              <div style="font-size: 13px; font-weight: 700; color: var(--primary);">
+                กำลังแก้ไขเพลย์ลิสต์เดิม: <span id="editingModePlName" style="color: var(--text);"></span>
+              </div>
+              <div style="font-size: 11px; color: var(--text-muted); margin-top: 1px;">
+                รหัส: <b id="editingModePlCode" style="color: var(--primary);"></b> — เมื่อกดบันทึก ระบบจะ<b>อัปเดตเพลย์ลิสต์เดิมนี้</b> ไม่สร้างอันใหม่ซ้ำซ้อน
+              </div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <button class="btn btn-secondary btn-sm" onclick="resetToNewPlaylistMode()" style="font-size: 12px;">➕ บันทึกเป็นเพลย์ลิสต์ใหม่แทน</button>
+          </div>
+        </div>
         
         <!-- Metadata Form -->
         <div class="form-grid">
@@ -734,10 +752,10 @@
           </div>
           <div class="form-group">
             <label class="form-label">ผู้สร้าง (Author)</label>
-            <input type="text" id="plAuthor" placeholder="เช่น Chillup Studio" value="Creator">
+            <input type="text" id="plAuthor" placeholder="ระบุผู้สร้าง (เช่น Chillup หรือเว้นว่าง)" value="">
           </div>
           <div class="form-group">
-            <label class="form-label">รหัส Redeem ที่ต้องการ (Custom Code)</label>
+            <label class="form-label">รหัส Redeem (Custom Code)</label>
             <input type="text" id="plRedeemCode" placeholder="เว้นว่างเพื่อสุ่ม (เช่น PL-XXXX)" style="text-transform: uppercase;">
           </div>
         </div>
@@ -789,7 +807,7 @@
           <div class="action-group">
             <button class="btn btn-ghost btn-sm" onclick="exportFile('m3u')">⬇ M3U</button>
             <button class="btn btn-ghost btn-sm" onclick="exportFile('w3u')">⬇ W3U</button>
-            <button class="btn btn-success btn-sm" onclick="saveAndGenerateRedeemCode()">💾 บันทึก & รับรหัส</button>
+            <button class="btn btn-success btn-sm" id="btnSavePlaylist" onclick="saveAndGenerateRedeemCode()">💾 บันทึก & รับรหัส</button>
           </div>
         </div>
 
@@ -927,6 +945,34 @@
     </div>
   </div>
 
+  <!-- MODAL: QUICK SELECT / CHANGE GROUP FOR CHANNEL -->
+  <div class="modal-backdrop" id="quickGroupModal">
+    <div class="modal-box" style="max-width: 460px;">
+      <div class="modal-title">
+        <h3 style="font-size: 16px; font-weight: 700;">📁 เปลี่ยนกลุ่มสำหรับช่อง</h3>
+        <button class="btn btn-ghost btn-sm" onclick="closeQuickGroupModal()">✕</button>
+      </div>
+      <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin-bottom: 12px; font-size: 13px;">
+        ช่อง: <b id="quickGroupChannelName" style="color: var(--primary);"></b>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 12px;">
+        <div>
+          <label class="form-label" style="margin-bottom: 6px; font-size: 12px; color: var(--text-muted);">เลือกจากกลุ่มที่มีอยู่ (คลิก 1 ครั้งเปลี่ยนทันที):</label>
+          <div id="quickGroupPillList" style="display: flex; flex-wrap: wrap; gap: 6px; max-height: 180px; overflow-y: auto; padding: 4px 0;">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+        <div style="border-top: 1px solid var(--border); padding-top: 10px;">
+          <label class="form-label" style="font-size: 12px;">หรือสร้าง / พิมพ์ชื่อกลุ่มใหม่:</label>
+          <div style="display: flex; gap: 8px; margin-top: 4px;">
+            <input type="text" id="quickGroupCustomInput" placeholder="พิมพ์ชื่อกลุ่มใหม่..." style="flex: 1; font-size: 13px;">
+            <button class="btn btn-primary btn-sm" onclick="applyCustomQuickGroup()">ตกลง</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- MODAL: ADD / EDIT CHANNEL -->
   <div class="modal-backdrop" id="channelModal">
     <div class="modal-box">
@@ -947,8 +993,12 @@
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
           <div class="form-group">
             <label class="form-label">กลุ่ม (Group Title)</label>
-            <input type="text" id="inputChGroup" list="existingGroupsDatalist" placeholder="เช่น ทั่วไป, ดิจิตอลทีวี">
-            <datalist id="existingGroupsDatalist"></datalist>
+            <div style="display: flex; flex-direction: column; gap: 6px;">
+              <select id="selectChGroup" style="width: 100%; font-size: 13px;" onchange="onChannelModalSelectGroup(this.value)">
+                <!-- populated dynamically -->
+              </select>
+              <input type="text" id="inputChGroup" placeholder="หรือพิมพ์ชื่อกลุ่มเอง" style="width: 100%; font-size: 13px;">
+            </div>
           </div>
           <div class="form-group">
             <label class="form-label">โลโก้ (Logo URL)</label>
@@ -1130,6 +1180,11 @@
     let groupCovers = {}; // Key: GroupName, Value: Cover Image URL
     let activeGroupFilter = "ALL";
     let editingIndex = -1;
+    let quickGroupChannelIndex = -1;
+    let currentEditingPlaylistId = null;
+    let currentEditingRedeemCode = null;
+    let currentEditingCreatedAt = null;
+    let currentEditingUsedCount = 0;
 
     // --- JWT & AUTHENTICATION ---
     function parseJwt(token) {
@@ -1279,13 +1334,6 @@
       try { updateUserUI(); } catch (e) { console.error("updateUserUI error:", e); }
       try { renderChannels(); } catch (e) { console.error("renderChannels error:", e); }
       try { loadMyPlaylists(); } catch (e) { console.error("loadMyPlaylists error:", e); }
-      
-      try {
-        const authorInput = document.getElementById("plAuthor");
-        if (authorInput && (!authorInput.value || authorInput.value === "Creator")) {
-          authorInput.value = (currentUser && currentUser.name) ? currentUser.name : "Creator";
-        }
-      } catch (_) {}
     }
 
     window.addEventListener("DOMContentLoaded", () => {
@@ -1485,12 +1533,23 @@
       activeGroupFilter = "ALL";
       currentPage = 1;
       editingIndex = -1;
+      quickGroupChannelIndex = -1;
+      currentEditingPlaylistId = null;
+      currentEditingRedeemCode = null;
+      currentEditingCreatedAt = null;
+      currentEditingUsedCount = 0;
       
+      const banner = document.getElementById("editingModeBanner");
+      if (banner) banner.style.display = "none";
+
+      const btnSave = document.getElementById("btnSavePlaylist");
+      if (btnSave) btnSave.textContent = "💾 บันทึก & รับรหัส";
+
       const plNameInput = document.getElementById("plName");
       if (plNameInput) plNameInput.value = "My Playlist";
       
       const plAuthorInput = document.getElementById("plAuthor");
-      if (plAuthorInput) plAuthorInput.value = (currentUser && currentUser.name) ? currentUser.name : "Creator";
+      if (plAuthorInput) plAuthorInput.value = "";
       
       const plRedeemInput = document.getElementById("plRedeemCode");
       if (plRedeemInput) plRedeemInput.value = "";
@@ -1572,15 +1631,25 @@
           '<img src="' + escapeHtml(cover) + '" style="width: 38px; height: 38px; border-radius: 6px; object-fit: cover;" onerror="this.onerror=null; this.parentElement.innerHTML=\'<div style=\\\'width:38px; height:38px; border-radius:6px; background:var(--surface); display:flex; align-items:center; justify-content:center; border:1px solid var(--danger); font-size:12px;\\\'>⚠️</div>\';">' : 
           '<div style="width: 38px; height: 38px; border-radius: 6px; background: var(--surface); display:flex; align-items:center; justify-content:center; border: 1px solid var(--border); font-size:16px;">📁</div>';
 
+        // Options for moving channels to other groups
+        let moveOptions = '<option value="__none__">-- ย้ายช่องไปกลุ่มอื่น --</option>';
+        modalGroupsData.forEach((otherGrp, otherIdx) => {
+          if (otherIdx !== idx) {
+            const oName = otherGrp.name || otherGrp.originalName;
+            moveOptions += '<option value="' + escapeHtml(oName) + '">ย้ายไป ' + escapeHtml(oName) + '</option>';
+          }
+        });
+
         html += '<div class="group-setting-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">' +
-          '<div style="display:flex; justify-content:space-between; align-items:center; gap: 8px;">' +
-            '<div style="display:flex; align-items:center; gap: 8px; flex: 1;">' +
+          '<div style="display:flex; justify-content:space-between; align-items:center; gap: 8px; flex-wrap: wrap;">' +
+            '<div style="display:flex; align-items:center; gap: 8px; flex: 1; min-width: 220px;">' +
               '<span style="font-size: 11px; color: var(--text-faint); font-weight:600; width: 22px;">#' + (idx + 1) + '</span>' +
-              '<input type="text" id="grpNameInput_' + idx + '" value="' + escapeHtml(grp.name) + '" placeholder="ชื่อกลุ่ม" style="font-weight: 600; font-size: 13px; padding: 5px 8px; flex: 1; max-width: 260px;" oninput="onModalGroupNameChange(' + idx + ', this.value)">' +
+              '<input type="text" id="grpNameInput_' + idx + '" value="' + escapeHtml(grp.name) + '" placeholder="ชื่อกลุ่ม" style="font-weight: 600; font-size: 13px; padding: 5px 8px; flex: 1;" oninput="onModalGroupNameChange(' + idx + ', this.value)">' +
               '<span class="badge" style="background: var(--surface-subtle); border: 1px solid var(--border); font-size: 11px; white-space: nowrap;">' + grp.count + ' ช่อง</span>' +
             '</div>' +
-            '<div style="display:flex; gap: 4px;">' +
-              '<button class="btn btn-ghost btn-sm" onclick="deleteModalGroup(' + idx + ')" style="color: var(--danger); font-size: 12px; padding: 4px 8px;" title="ลบกลุ่มนี้ (ย้ายช่องไป General)">🗑 ลบกลุ่ม</button>' +
+            '<div style="display:flex; gap: 6px; align-items:center;">' +
+              (grp.count > 0 ? '<select style="font-size: 11px; padding: 3px 6px;" onchange="moveAllChannelsToGroup(' + idx + ', this.value); this.value=\'__none__\';">' + moveOptions + '</select>' : '') +
+              '<button class="btn btn-ghost btn-sm" onclick="deleteModalGroup(' + idx + ')" style="color: var(--danger); font-size: 12px; padding: 4px 8px;" title="ลบกลุ่มนี้">🗑 ลบกลุ่ม</button>' +
             '</div>' +
           '</div>' +
           '<div style="display:flex; gap: 8px; align-items:center;">' +
@@ -1592,6 +1661,28 @@
       });
 
       container.innerHTML = html;
+    }
+
+    function moveAllChannelsToGroup(idx, targetGroupName) {
+      if (!targetGroupName || targetGroupName === "__none__") return;
+      const grp = modalGroupsData[idx];
+      if (!grp) return;
+      const sourceName = grp.name || grp.originalName;
+      if (sourceName === targetGroupName) return;
+
+      if (confirm("ย้ายช่องทั้งหมดในกลุ่ม [" + sourceName + "] ไปอยู่กลุ่ม [" + targetGroupName + "] ใช่หรือไม่?")) {
+        let count = 0;
+        channels.forEach(c => {
+          if ((c.group || "General").trim() === sourceName) {
+            c.group = targetGroupName;
+            count++;
+          }
+        });
+        openGroupSettingsModal();
+        renderChannels();
+        renderGroupPills();
+        updateStats();
+      }
     }
 
     function onModalGroupNameChange(idx, newName) {
@@ -1729,6 +1820,7 @@
       closeGroupSettingsModal();
       renderChannels();
       renderGroupPills();
+      updateStats();
       alert("✅ บันทึกการตั้งค่ากลุ่มและรูปปกสำเร็จ" + (renameCount > 0 ? " (เปลี่ยนชื่อกลุ่ม " + renameCount + " ช่อง)" : ""));
     }
 
@@ -2017,12 +2109,59 @@
       }
     }
 
+    function populateChannelModalGroups(selectedGroup) {
+      const select = document.getElementById("selectChGroup");
+      const input = document.getElementById("inputChGroup");
+      if (!select || !input) return;
+
+      const groupSet = new Set();
+      channels.forEach(c => {
+        const g = (c.group || "General").trim();
+        if (g) groupSet.add(g);
+      });
+      Object.keys(groupCovers).forEach(g => {
+        const cleanG = g.trim();
+        if (cleanG) groupSet.add(cleanG);
+      });
+      if (groupSet.size === 0) groupSet.add("General");
+
+      const sorted = Array.from(groupSet).sort();
+      let html = '<option value="">-- เลือกกลุ่มที่มีอยู่ --</option>';
+      sorted.forEach(g => {
+        html += '<option value="' + escapeHtml(g) + '">' + escapeHtml(g) + '</option>';
+      });
+      html += '<option value="__custom__">➕ พิมพ์ชื่อกลุ่มใหม่ / กำหนดเอง...</option>';
+      select.innerHTML = html;
+
+      const currentVal = (selectedGroup || "General").trim();
+      const match = sorted.find(g => g.toLowerCase() === currentVal.toLowerCase());
+      if (match) {
+        select.value = match;
+        input.value = match;
+      } else {
+        select.value = "__custom__";
+        input.value = currentVal;
+      }
+    }
+
+    function onChannelModalSelectGroup(val) {
+      const input = document.getElementById("inputChGroup");
+      if (!input) return;
+      if (val === "__custom__") {
+        input.value = "";
+        input.focus();
+      } else if (val) {
+        input.value = val;
+      }
+    }
+
     function openAddChannelModal() {
       editingIndex = -1;
       document.getElementById("modalChannelTitle").textContent = "เพิ่มช่องใหม่";
       document.getElementById("inputChName").value = "";
       document.getElementById("inputChUrl").value = "";
-      document.getElementById("inputChGroup").value = activeGroupFilter !== "ALL" ? activeGroupFilter : "General";
+      const defaultGroup = activeGroupFilter !== "ALL" ? activeGroupFilter : "General";
+      populateChannelModalGroups(defaultGroup);
       document.getElementById("inputChLogo").value = "";
       document.getElementById("inputChReferer").value = "";
       document.getElementById("inputChUa").value = "";
@@ -2035,7 +2174,7 @@
       document.getElementById("modalChannelTitle").textContent = "แก้ไขช่อง";
       document.getElementById("inputChName").value = ch.name || "";
       document.getElementById("inputChUrl").value = ch.url || "";
-      document.getElementById("inputChGroup").value = ch.group || "General";
+      populateChannelModalGroups(ch.group || "General");
       document.getElementById("inputChLogo").value = ch.logo || "";
       document.getElementById("inputChReferer").value = ch.referer || "";
       document.getElementById("inputChUa").value = ch.userAgent || "";
@@ -2077,6 +2216,8 @@
 
       closeChannelModal();
       renderChannels();
+      renderGroupPills();
+      updateStats();
     }
 
     function openImportModal() {
@@ -2293,7 +2434,7 @@
           }
           if (obj.author) {
             const authorInput = document.getElementById("plAuthor");
-            if (authorInput && (!authorInput.value || authorInput.value === "Creator")) authorInput.value = obj.author;
+            if (authorInput) authorInput.value = obj.author;
           }
           if (obj.image || obj.logo || obj.poster) {
             const imgInput = document.getElementById("plImage");
@@ -2413,7 +2554,7 @@
           const plA = extractTvgAttr(line, "author") || extractTvgAttr(line, "creator");
           if (plA) {
             const authorInput = document.getElementById("plAuthor");
-            if (authorInput && (!authorInput.value || authorInput.value === "Creator")) authorInput.value = plA;
+            if (authorInput) authorInput.value = plA;
           }
           const plImg = extractTvgAttr(line, "image") || extractTvgAttr(line, "logo") || extractTvgAttr(line, "poster") || extractTvgAttr(line, "tvg-logo");
           if (plImg) {
@@ -2743,18 +2884,91 @@
     }
 
     function quickEditChannelGroup(origIdx) {
+      openQuickGroupModal(origIdx);
+    }
+
+    function openQuickGroupModal(origIdx) {
+      quickGroupChannelIndex = origIdx;
       const ch = channels[origIdx];
       if (!ch) return;
-      const current = ch.group || "General";
-      const newGroup = prompt("เปลี่ยนชื่อกลุ่มสำหรับช่อง [" + (ch.name || "Channel") + "]:", current);
-      if (newGroup !== null) {
-        const trimmed = newGroup.trim() || "General";
-        if (trimmed !== current) {
-          ch.group = trimmed;
-          renderChannels();
-          renderGroupPills();
-          updateStats();
-        }
+
+      const targetTitle = document.getElementById("quickGroupTargetChannel");
+      if (targetTitle) targetTitle.textContent = "ช่อง: " + (ch.name || "Channel");
+
+      const groupSet = new Set();
+      channels.forEach(c => {
+        const g = (c.group || "General").trim();
+        if (g) groupSet.add(g);
+      });
+      Object.keys(groupCovers).forEach(g => {
+        const cleanG = g.trim();
+        if (cleanG) groupSet.add(cleanG);
+      });
+      if (groupSet.size === 0) groupSet.add("General");
+
+      const sorted = Array.from(groupSet).sort();
+      const listEl = document.getElementById("quickGroupList");
+      if (listEl) {
+        let html = '';
+        const currentGroup = (ch.group || "General").trim();
+        sorted.forEach(g => {
+          const isCur = g.toLowerCase() === currentGroup.toLowerCase();
+          html += '<button type="button" class="btn ' + (isCur ? 'btn-primary' : 'btn-secondary') + '" style="font-size: 12px; padding: 6px 12px; border-radius: 8px; justify-content: flex-start; text-align: left;" onclick="selectQuickGroup(\'' + escapeHtml(g).replace(/'/g, "\\'") + '\')">' +
+            (isCur ? '✓ ' : '📁 ') + escapeHtml(g) +
+          '</button>';
+        });
+        listEl.innerHTML = html;
+      }
+
+      const customInput = document.getElementById("quickGroupCustomInput");
+      if (customInput) customInput.value = "";
+
+      const modal = document.getElementById("quickGroupModal");
+      if (modal) modal.style.display = "flex";
+    }
+
+    function closeQuickGroupModal() {
+      const modal = document.getElementById("quickGroupModal");
+      if (modal) modal.style.display = "none";
+      quickGroupChannelIndex = -1;
+    }
+
+    function selectQuickGroup(groupName) {
+      if (quickGroupChannelIndex >= 0 && quickGroupChannelIndex < channels.length) {
+        channels[quickGroupChannelIndex].group = (groupName || "General").trim();
+        closeQuickGroupModal();
+        renderChannels();
+        renderGroupPills();
+        updateStats();
+      }
+    }
+
+    function applyCustomQuickGroup() {
+      const input = document.getElementById("quickGroupCustomInput");
+      const val = input ? input.value.trim() : "";
+      if (!val) {
+        alert("กรุณาระบุชื่อกลุ่มใหม่");
+        if (input) input.focus();
+        return;
+      }
+      selectQuickGroup(val);
+    }
+
+    function resetToNewPlaylistMode() {
+      if (confirm("ต้องการยกเลิกโหมดแก้ไข และเปลี่ยนเป็นสร้างเพลย์ลิสต์ใหม่ใช่หรือไม่?")) {
+        currentEditingPlaylistId = null;
+        currentEditingRedeemCode = null;
+        currentEditingCreatedAt = null;
+        currentEditingUsedCount = 0;
+
+        const banner = document.getElementById("editingModeBanner");
+        if (banner) banner.style.display = "none";
+
+        const btnSave = document.getElementById("btnSavePlaylist");
+        if (btnSave) btnSave.textContent = "💾 บันทึก & รับรหัส";
+
+        const plRedeem = document.getElementById("plRedeemCode");
+        if (plRedeem) plRedeem.value = "";
       }
     }
 
@@ -2777,22 +2991,38 @@
       const contact = document.getElementById("plContact").value.trim();
       const url = document.getElementById("plUrl").value.trim();
 
+      const isUpdating = !!(currentEditingPlaylistId && currentEditingRedeemCode);
+      const btnSave = document.getElementById("btnSavePlaylist");
+      if (btnSave) {
+        btnSave.disabled = true;
+        btnSave.textContent = "⏳ กำลังบันทึก...";
+      }
+
       try {
+        const payload = {
+          userId: currentUser.id,
+          name: plName,
+          author: author,
+          redeemCode: customCode || (isUpdating ? currentEditingRedeemCode : ""),
+          image: image,
+          info: info,
+          contact: contact,
+          url: url,
+          groupCovers: groupCovers,
+          channels: channels
+        };
+
+        if (isUpdating) {
+          payload.id = currentEditingPlaylistId;
+          payload.oldRedeemCode = currentEditingRedeemCode;
+          payload.createdAt = currentEditingCreatedAt;
+          payload.usedCount = currentEditingUsedCount;
+        }
+
         const resp = await fetch(HUB_SERVER + "/api/user/save-playlist", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            userId: currentUser.id,
-            name: plName,
-            author: author,
-            redeemCode: customCode,
-            image: image,
-            info: info,
-            contact: contact,
-            url: url,
-            groupCovers: groupCovers,
-            channels: channels
-          })
+          body: JSON.stringify(payload)
         });
 
         const res = await resp.json();
@@ -2813,6 +3043,11 @@
         }
       } catch (err) {
         alert("ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้: " + err.message);
+      } finally {
+        if (btnSave) {
+          btnSave.disabled = false;
+          btnSave.textContent = isUpdating ? "💾 อัปเดตเพลย์ลิสต์เดิม" : "💾 บันทึก & รับรหัส";
+        }
       }
     }
 
@@ -2854,7 +3089,7 @@
             '<td style="color: var(--text-muted);">' + dateStr + '</td>' +
             '<td style="text-align: center;">' +
               '<div style="display: flex; gap: 4px; justify-content: center;">' +
-                '<button class="btn btn-primary btn-sm" onclick="loadPlaylistIntoEditor(\'' + escapeHtml(pl.redeemCode) + '\')" title="โหลดข้อมูลทั้งหมดเข้าตัวแก้ไข">✏ โหลด 100%</button>' +
+                '<button class="btn btn-primary btn-sm" onclick="loadPlaylistIntoEditor(\'' + escapeHtml(pl.redeemCode) + '\', \'' + escapeHtml(pl.id || '') + '\')" title="โหลดข้อมูลทั้งหมดเข้าตัวแก้ไข">✏ โหลด 100%</button>' +
                 '<button class="btn btn-secondary btn-sm" onclick="copyTextCode(\'' + escapeHtml(pl.redeemCode) + '\')" title="คัดลอกรหัส">📋 คัดลอก</button>' +
                 '<button class="btn btn-danger btn-sm" onclick="deleteUserPlaylist(\'' + escapeHtml(pl.id) + '\', \'' + escapeHtml(pl.redeemCode) + '\')" title="ลบ">🗑</button>' +
               '</div>' +
@@ -2867,7 +3102,7 @@
       }
     }
 
-    async function loadPlaylistIntoEditor(code) {
+    async function loadPlaylistIntoEditor(code, plId) {
       try {
         const resp = await fetch(HUB_SERVER + "/api/get-protected-playlist?code=" + encodeURIComponent(code));
         const res = await resp.json();
@@ -2875,6 +3110,12 @@
           // Clear previous state completely
           channels = [];
           groupCovers = {};
+
+          // Set edit mode tracking so save updates the existing playlist
+          currentEditingPlaylistId = plId || res.id || ("pl_" + code);
+          currentEditingRedeemCode = res.redeemCode || code;
+          currentEditingCreatedAt = res.createdAt || null;
+          currentEditingUsedCount = res.usedCount || 0;
 
           // Populate channels 100%
           channels = res.channels.map(ch => ({
@@ -2887,9 +3128,9 @@
             status: "unknown"
           }));
 
-          // Populate playlist metadata 100%
+          // Populate playlist metadata 100% (Author loads from playlist exactly)
           document.getElementById("plName").value = res.name || "My Playlist";
-          document.getElementById("plAuthor").value = res.author || ((currentUser && currentUser.name) ? currentUser.name : "Creator");
+          document.getElementById("plAuthor").value = (res.author !== undefined && res.author !== null) ? res.author : "";
           document.getElementById("plRedeemCode").value = res.redeemCode || code;
           document.getElementById("plImage").value = res.image || res.logo || "";
           document.getElementById("plInfo").value = res.info || res.description || "";
@@ -2898,6 +3139,15 @@
 
           // Populate group covers 100%
           groupCovers = (res.groupCovers && typeof res.groupCovers === "object") ? Object.assign({}, res.groupCovers) : {};
+
+          // Show editing mode banner in editor
+          const banner = document.getElementById("editingModeBanner");
+          const bannerCode = document.getElementById("editingCodeText");
+          if (banner) banner.style.display = "flex";
+          if (bannerCode) bannerCode.textContent = currentEditingRedeemCode;
+
+          const btnSave = document.getElementById("btnSavePlaylist");
+          if (btnSave) btnSave.textContent = "💾 อัปเดตเพลย์ลิสต์เดิม (" + currentEditingRedeemCode + ")";
 
           // Reset filters & page to view all channels
           activeGroupFilter = "ALL";
@@ -2915,7 +3165,7 @@
           // Switch to editor view
           switchTab("editor");
 
-          alert("✅ โหลดข้อมูลเพลย์ลิสต์ [" + (res.name || code) + "] ครบถ้วน 100% เรียบร้อยแล้ว (" + channels.length + " ช่อง)");
+          alert("✅ โหลดข้อมูลเพลย์ลิสต์ [" + (res.name || code) + "] ครบถ้วน 100% เรียบร้อยแล้ว (" + channels.length + " ช่อง)\nเมื่อแก้ไขเสร็จและกดบันทึก ระบบจะอัปเดตทับเพลย์ลิสต์เดิมนี้");
         } else {
           alert("ไม่พบข้อมูลเพลย์ลิสต์นี้ หรือรหัสไม่ถูกต้อง");
         }
