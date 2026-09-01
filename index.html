@@ -975,16 +975,23 @@
 
   <!-- MODAL: GROUP COVERS & SETTINGS -->
   <div class="modal-backdrop" id="groupSettingsModal">
-    <div class="modal-box" style="max-width: 640px; max-height: 85vh; display: flex; flex-direction: column;">
+    <div class="modal-box" style="max-width: 680px; max-height: 88vh; display: flex; flex-direction: column;">
       <div class="modal-title">
         <div>
-          <h3 style="font-size: 17px; font-weight: 700;">📁 จัดการกลุ่มและรูปปกกลุ่ม (Group Covers & Settings)</h3>
-          <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">กำหนดรูปภาพหน้าปกและเปลี่ยนชื่อสำหรับแต่ละกลุ่ม (W3U / Wiseplay Group Covers)</p>
+          <h3 style="font-size: 17px; font-weight: 700;">📁 จัดการกลุ่มและรูปปกกลุ่ม (Group Manager)</h3>
+          <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">แก้ไขชื่อกลุ่ม เพิ่มกลุ่มใหม่ หรือกำหนดรูปภาพหน้าปกสำหรับแต่ละกลุ่ม</p>
         </div>
         <button class="btn btn-ghost btn-sm" onclick="closeGroupSettingsModal()">✕</button>
       </div>
 
-      <div style="overflow-y: auto; flex: 1; padding: 4px 4px 12px 0; display: flex; flex-direction: column; gap: 12px;" id="groupSettingsListContainer">
+      <!-- Quick Add New Group Bar -->
+      <div style="background: var(--surface-subtle); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+        <input type="text" id="newGroupNameInput" placeholder="+ ชื่อกลุ่มใหม่ (เช่น กีฬา, ภาพยนตร์)" style="flex: 1; min-width: 140px; font-size: 13px;">
+        <input type="text" id="newGroupCoverInput" placeholder="URL รูปปกกลุ่ม (ถ้ามี)" style="flex: 1.5; min-width: 180px; font-size: 13px;">
+        <button class="btn btn-primary btn-sm" onclick="addNewGroupFromModal()">+ เพิ่มกลุ่ม</button>
+      </div>
+
+      <div style="overflow-y: auto; flex: 1; padding: 4px 4px 12px 0; display: flex; flex-direction: column; gap: 10px;" id="groupSettingsListContainer">
         <!-- Dynamic Group settings list items -->
       </div>
 
@@ -992,7 +999,7 @@
         <button class="btn btn-ghost btn-sm" onclick="clearAllGroupCovers()" style="color: var(--text-muted);">ล้างรูปปกกลุ่มทั้งหมด</button>
         <div style="display: flex; gap: 8px;">
           <button class="btn btn-secondary btn-sm" onclick="closeGroupSettingsModal()">ปิด</button>
-          <button class="btn btn-primary btn-sm" onclick="saveGroupSettingsModal()">บันทึกการตั้งค่ากลุ่ม</button>
+          <button class="btn btn-primary btn-sm" onclick="saveGroupSettingsModal()">💾 บันทึกการตั้งค่ากลุ่ม</button>
         </div>
       </div>
     </div>
@@ -1058,10 +1065,10 @@
       </div>
 
       <div style="font-size: 12px; color: var(--text-muted); text-align: left; background: var(--surface-subtle); padding: 12px; border-radius: 8px; line-height: 1.5; margin-bottom: 16px;">
-        🔒 <b>RAM-Only Delivery:</b> ช่องและสตรีมทั้งหมดจะถูกโหลดเข้าสู่หน่วยความจำชั่วคราวเท่านั้น ไม่มีการบันทึกไฟล์สตรีมลงตัวเครื่อง ป้องกันการดึง URL 100%
+        ✅ เพลย์ลิสต์ถูกบันทึกและพร้อมใช้งานทันที และตัวแก้ไขถูกรีเซ็ตเพื่อเตรียมพร้อมสำหรับสร้างเพลย์ลิสต์ใหม่
       </div>
 
-      <button class="btn btn-secondary" style="width: 100%;" onclick="closeRedeemModal()">ตกลง</button>
+      <button class="btn btn-primary" style="width: 100%;" onclick="closeRedeemModal()">📂 ไปที่เพลย์ลิสต์ของฉัน (ตกลง)</button>
     </div>
   </div>
 
@@ -1284,6 +1291,14 @@
     window.addEventListener("DOMContentLoaded", () => {
       checkAuthAndInit();
       initGoogleAuth();
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryCode = urlParams.get("code") || urlParams.get("redeem");
+      if (queryCode) {
+        setTimeout(() => {
+          loadPlaylistIntoEditor(queryCode);
+        }, 500);
+      }
     });
 
     function logout() {
@@ -1347,18 +1362,26 @@
     }
 
     function switchTab(tab) {
-      document.getElementById("tabEditorBtn").classList.toggle("active", tab === "editor");
-      document.getElementById("tabMyListsBtn").classList.toggle("active", tab === "mylists");
-      document.getElementById("viewEditor").style.display = tab === "editor" ? "block" : "none";
-      document.getElementById("viewMyLists").style.display = tab === "mylists" ? "block" : "none";
-      if (tab === "mylists") loadMyPlaylists();
+      const t = (tab || "").toLowerCase();
+      const isEditor = t === "editor";
+      const isMyLists = t === "mylists";
+      const tabEditorBtn = document.getElementById("tabEditorBtn");
+      const tabMyListsBtn = document.getElementById("tabMyListsBtn");
+      const viewEditor = document.getElementById("viewEditor");
+      const viewMyLists = document.getElementById("viewMyLists");
+      
+      if (tabEditorBtn) tabEditorBtn.classList.toggle("active", isEditor);
+      if (tabMyListsBtn) tabMyListsBtn.classList.toggle("active", isMyLists);
+      if (viewEditor) viewEditor.style.display = isEditor ? "block" : "none";
+      if (viewMyLists) viewMyLists.style.display = isMyLists ? "block" : "none";
+      if (isMyLists) loadMyPlaylists();
     }
 
-    
     let currentPage = 1;
     let pageSize = 25;
     let isCheckingLinks = false;
     let checkLinksAbortController = null;
+    let modalGroupsData = [];
 
     function updateCheckButtonLabel() {
       const btn = document.getElementById("btnCheckAllLinks");
@@ -1421,14 +1444,12 @@
       renderChannels();
     }
 
-    
     function handleLogoError(img) {
       if (!img) return;
       img.onerror = null;
       img.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28'><rect width='28' height='28' fill='%23334155'/><text x='50%' y='50%' fill='%2394a3b8' font-size='10' text-anchor='middle' dy='.3em'>TV</text></svg>";
     }
 
-    
     function updateCoverPreview() {
       const url = (document.getElementById("plImage").value || "").trim();
       const box = document.getElementById("coverThumbnailBox");
@@ -1447,150 +1468,268 @@
 
     function clearAllData() {
       if (channels.length === 0 && !document.getElementById("plImage").value && !document.getElementById("plInfo").value) {
-        resetFormFields();
+        clearEditorForNewPlaylist();
         alert("ข้อมูลถูกล้างเรียบร้อยแล้ว");
         return;
       }
 
-      if (confirm("⚠️ คุณต้องการล้างข้อมูลทั้งหมดในฟอร์ม รายการช่อง รูปปก และกลุ่มใช่หรือไม่?")) {
-        channels = [];
-        resetFormFields();
-        renderChannels();
-        alert("🗑️ ล้างข้อมูลทั้งหมดเรียบร้อยแล้ว");
+      if (confirm("⚠️ คุณต้องการล้างข้อมูลทั้งหมดในฟอร์ม รายการช่อง รูปปก และกลุ่ม เพื่อเริ่มต้นสร้างเพลย์ลิสต์ใหม่ใช่หรือไม่?")) {
+        clearEditorForNewPlaylist();
+        alert("🗑️ ล้างข้อมูลทั้งหมดเรียบร้อยแล้ว — พร้อมสร้างเพลย์ลิสต์ใหม่");
       }
     }
 
-    function resetFormFields() {
-      document.getElementById("plName").value = "My Playlist";
-      document.getElementById("plAuthor").value = (currentUser && currentUser.name) ? currentUser.name : "Creator";
-      document.getElementById("plRedeemCode").value = "";
-      document.getElementById("plImage").value = "";
-      document.getElementById("plInfo").value = "";
-      document.getElementById("plContact").value = "";
-      document.getElementById("plUrl").value = "";
-      document.getElementById("searchChannel").value = "";
+    function clearEditorForNewPlaylist() {
+      channels = [];
       groupCovers = {};
       activeGroupFilter = "ALL";
+      currentPage = 1;
+      editingIndex = -1;
+      
+      const plNameInput = document.getElementById("plName");
+      if (plNameInput) plNameInput.value = "My Playlist";
+      
+      const plAuthorInput = document.getElementById("plAuthor");
+      if (plAuthorInput) plAuthorInput.value = (currentUser && currentUser.name) ? currentUser.name : "Creator";
+      
+      const plRedeemInput = document.getElementById("plRedeemCode");
+      if (plRedeemInput) plRedeemInput.value = "";
+      
+      const plImageInput = document.getElementById("plImage");
+      if (plImageInput) plImageInput.value = "";
+      
+      const plInfoInput = document.getElementById("plInfo");
+      if (plInfoInput) plInfoInput.value = "";
+      
+      const plContactInput = document.getElementById("plContact");
+      if (plContactInput) plContactInput.value = "";
+      
+      const plUrlInput = document.getElementById("plUrl");
+      if (plUrlInput) plUrlInput.value = "";
+      
+      const searchInput = document.getElementById("searchChannel");
+      if (searchInput) searchInput.value = "";
+
       updateCoverPreview();
+      renderChannels();
+      renderGroupPills();
+      updateStats();
+      updateCheckButtonLabel();
     }
 
+    function resetFormFields() {
+      clearEditorForNewPlaylist();
+    }
+
+    // =========================================================================
+    // 📁 GROUP MANAGEMENT & COVERS (Fully Editable & Bug-Free)
+    // =========================================================================
     function openGroupSettingsModal() {
       const container = document.getElementById("groupSettingsListContainer");
       if (!container) return;
 
       const groupCounts = {};
       channels.forEach(c => {
-        const g = c.group || "General";
+        const g = (c.group || "General").trim();
         groupCounts[g] = (groupCounts[g] || 0) + 1;
       });
 
-      const sortedGroups = Object.keys(groupCounts).sort();
+      // Also include groups registered in groupCovers
+      Object.keys(groupCovers).forEach(g => {
+        const cleanG = g.trim();
+        if (cleanG && groupCounts[cleanG] === undefined) {
+          groupCounts[cleanG] = 0;
+        }
+      });
 
-      if (sortedGroups.length === 0) {
-        container.innerHTML = '<div style="text-align:center; padding: 24px; color: var(--text-muted);">ยังไม่มีกลุ่มช่องรายการ กรุณาเพิ่มช่องหรือนำเข้าเพลย์ลิสต์ก่อน</div>';
-      } else {
-        let html = '';
-        sortedGroups.forEach(g => {
-          const cover = groupCovers[g] || "";
-          const count = groupCounts[g];
-          const previewImg = cover ? '<img src="' + escapeHtml(cover) + '" style="width: 36px; height: 36px; border-radius: 6px; object-fit: cover;" onerror="this.src=\'\'; this.style.display=\'none\';">' : '<div style="width: 36px; height: 36px; border-radius: 6px; background: var(--surface); display:flex; align-items:center; justify-content:center; border: 1px solid var(--border); font-size:16px;">📁</div>';
+      const sortedNames = Object.keys(groupCounts).sort();
+      modalGroupsData = sortedNames.map((g, idx) => ({
+        id: idx,
+        originalName: g,
+        name: g,
+        count: groupCounts[g] || 0,
+        cover: groupCovers[g] || ""
+      }));
 
-          html += '<div class="group-setting-card" id="grpCard_' + encodeURIComponent(g) + '">' +
-            '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-              '<div style="display:flex; align-items:center; gap: 8px;">' +
-                '<span style="font-weight: 600; font-size: 14px; color: var(--text);">' + escapeHtml(g) + '</span>' +
-                '<span class="badge" style="background: var(--surface); border: 1px solid var(--border); font-size: 11px;">' + count + ' ช่อง</span>' +
-              '</div>' +
-              '<div style="display:flex; gap: 4px;">' +
-                '<button class="btn btn-ghost btn-sm" onclick="renameGroupPrompt(\'' + escapeHtml(g) + '\')" title="เปลี่ยนชื่อกลุ่มนี้ทั้งหมด">✏ เปลี่ยนชื่อ</button>' +
-              '</div>' +
-            '</div>' +
-            '<div style="display:flex; gap: 8px; align-items:center;">' +
-              '<div id="grpPreview_' + encodeURIComponent(g) + '" style="width: 36px; height: 36px; flex-shrink:0;">' + previewImg + '</div>' +
-              '<input type="text" id="grpInput_' + encodeURIComponent(g) + '" value="' + escapeHtml(cover) + '" placeholder="URL รูปภาพหน้าปกกลุ่ม เช่น https://domain.com/group_cover.jpg" style="flex:1; font-size:12px;" oninput="updateSingleGroupPreview(\'' + escapeHtml(g) + '\', this.value)">' +
-              (cover ? '<button class="btn btn-ghost btn-sm" onclick="clearSingleGroupCover(\'' + escapeHtml(g) + '\')" style="color:var(--text-muted);">✕</button>' : '') +
-            '</div>' +
-          '</div>';
-        });
-        container.innerHTML = html;
-      }
-
+      renderGroupSettingsList();
       document.getElementById("groupSettingsModal").style.display = "flex";
     }
 
-    function updateSingleGroupPreview(g, url) {
-      const previewEl = document.getElementById("grpPreview_" + encodeURIComponent(g));
-      if (!previewEl) return;
-      if (url && url.trim()) {
-        previewEl.innerHTML = '<img src="' + escapeHtml(url.trim()) + '" style="width: 36px; height: 36px; border-radius: 6px; object-fit: cover;" onerror="this.onerror=null; this.parentElement.innerHTML=\'<div style=\\\'width:36px; height:36px; border-radius:6px; background:var(--surface); display:flex; align-items:center; justify-content:center; border:1px solid var(--danger); font-size:12px;\\\'>⚠️</div>\';">';
-      } else {
-        previewEl.innerHTML = '<div style="width: 36px; height: 36px; border-radius: 6px; background: var(--surface); display:flex; align-items:center; justify-content:center; border: 1px solid var(--border); font-size:16px;">📁</div>';
+    function renderGroupSettingsList() {
+      const container = document.getElementById("groupSettingsListContainer");
+      if (!container) return;
+
+      if (modalGroupsData.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding: 24px; color: var(--text-muted);">' +
+          'ยังไม่มีกลุ่มช่องรายการ<br><span style="font-size:12px;">คุณสามารถพิมพ์เพิ่มกลุ่มใหม่ที่ช่องด้านบน หรือเพิ่มช่องในตาราง</span></div>';
+        return;
+      }
+
+      let html = '';
+      modalGroupsData.forEach((grp, idx) => {
+        const cover = grp.cover || "";
+        const previewImg = cover ? 
+          '<img src="' + escapeHtml(cover) + '" style="width: 38px; height: 38px; border-radius: 6px; object-fit: cover;" onerror="this.onerror=null; this.parentElement.innerHTML=\'<div style=\\\'width:38px; height:38px; border-radius:6px; background:var(--surface); display:flex; align-items:center; justify-content:center; border:1px solid var(--danger); font-size:12px;\\\'>⚠️</div>\';">' : 
+          '<div style="width: 38px; height: 38px; border-radius: 6px; background: var(--surface); display:flex; align-items:center; justify-content:center; border: 1px solid var(--border); font-size:16px;">📁</div>';
+
+        html += '<div class="group-setting-card" style="background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;">' +
+          '<div style="display:flex; justify-content:space-between; align-items:center; gap: 8px;">' +
+            '<div style="display:flex; align-items:center; gap: 8px; flex: 1;">' +
+              '<span style="font-size: 11px; color: var(--text-faint); font-weight:600; width: 22px;">#' + (idx + 1) + '</span>' +
+              '<input type="text" id="grpNameInput_' + idx + '" value="' + escapeHtml(grp.name) + '" placeholder="ชื่อกลุ่ม" style="font-weight: 600; font-size: 13px; padding: 5px 8px; flex: 1; max-width: 260px;" oninput="onModalGroupNameChange(' + idx + ', this.value)">' +
+              '<span class="badge" style="background: var(--surface-subtle); border: 1px solid var(--border); font-size: 11px; white-space: nowrap;">' + grp.count + ' ช่อง</span>' +
+            '</div>' +
+            '<div style="display:flex; gap: 4px;">' +
+              '<button class="btn btn-ghost btn-sm" onclick="deleteModalGroup(' + idx + ')" style="color: var(--danger); font-size: 12px; padding: 4px 8px;" title="ลบกลุ่มนี้ (ย้ายช่องไป General)">🗑 ลบกลุ่ม</button>' +
+            '</div>' +
+          '</div>' +
+          '<div style="display:flex; gap: 8px; align-items:center;">' +
+            '<div id="grpPreview_' + idx + '" style="width: 38px; height: 38px; flex-shrink:0;">' + previewImg + '</div>' +
+            '<input type="text" id="grpCoverInput_' + idx + '" value="' + escapeHtml(cover) + '" placeholder="URL รูปภาพหน้าปกกลุ่ม (Poster URL)..." style="flex:1; font-size:12px;" oninput="onModalGroupCoverInput(' + idx + ', this.value)">' +
+            (cover ? '<button class="btn btn-ghost btn-sm" onclick="clearModalGroupCover(' + idx + ')" style="color:var(--text-muted); padding: 4px 8px;">✕</button>' : '') +
+          '</div>' +
+        '</div>';
+      });
+
+      container.innerHTML = html;
+    }
+
+    function onModalGroupNameChange(idx, newName) {
+      if (modalGroupsData[idx]) {
+        modalGroupsData[idx].name = newName;
       }
     }
 
-    function clearSingleGroupCover(g) {
-      delete groupCovers[g];
-      const input = document.getElementById("grpInput_" + encodeURIComponent(g));
-      if (input) input.value = "";
-      updateSingleGroupPreview(g, "");
+    function onModalGroupCoverInput(idx, url) {
+      if (modalGroupsData[idx]) {
+        modalGroupsData[idx].cover = (url || "").trim();
+        const previewEl = document.getElementById("grpPreview_" + idx);
+        if (previewEl) {
+          const val = modalGroupsData[idx].cover;
+          if (val) {
+            previewEl.innerHTML = '<img src="' + escapeHtml(val) + '" style="width: 38px; height: 38px; border-radius: 6px; object-fit: cover;" onerror="this.onerror=null; this.parentElement.innerHTML=\'<div style=\\\'width:38px; height:38px; border-radius:6px; background:var(--surface); display:flex; align-items:center; justify-content:center; border:1px solid var(--danger); font-size:12px;\\\'>⚠️</div>\';">';
+          } else {
+            previewEl.innerHTML = '<div style="width: 38px; height: 38px; border-radius: 6px; background: var(--surface); display:flex; align-items:center; justify-content:center; border: 1px solid var(--border); font-size:16px;">📁</div>';
+          }
+        }
+      }
+    }
+
+    function clearModalGroupCover(idx) {
+      if (modalGroupsData[idx]) {
+        modalGroupsData[idx].cover = "";
+        const input = document.getElementById("grpCoverInput_" + idx);
+        if (input) input.value = "";
+        onModalGroupCoverInput(idx, "");
+      }
+    }
+
+    function deleteModalGroup(idx) {
+      const grp = modalGroupsData[idx];
+      if (!grp) return;
+      const grpName = grp.originalName;
+      if (confirm("คุณต้องการลบกลุ่ม [" + grpName + "] ใช่หรือไม่?\n(ช่องทั้งหมดในกลุ่มนี้จะถูกเปลี่ยนไปอยู่กลุ่ม 'General')")) {
+        let affected = 0;
+        channels.forEach(c => {
+          if ((c.group || "General").trim() === grpName) {
+            c.group = "General";
+            affected++;
+          }
+        });
+        delete groupCovers[grpName];
+        if (activeGroupFilter === grpName) {
+          activeGroupFilter = "ALL";
+        }
+        modalGroupsData.splice(idx, 1);
+        renderGroupSettingsList();
+        renderChannels();
+        renderGroupPills();
+      }
+    }
+
+    function addNewGroupFromModal() {
+      const nameInput = document.getElementById("newGroupNameInput");
+      const coverInput = document.getElementById("newGroupCoverInput");
+      const name = nameInput ? nameInput.value.trim() : "";
+      const cover = coverInput ? coverInput.value.trim() : "";
+
+      if (!name) {
+        alert("กรุณาระบุชื่อกลุ่มใหม่");
+        if (nameInput) nameInput.focus();
+        return;
+      }
+
+      if (modalGroupsData.some(g => g.name.toLowerCase() === name.toLowerCase())) {
+        alert("มีกลุ่มชื่อ [" + name + "] อยู่แล้วในรายการ");
+        return;
+      }
+
+      if (cover) {
+        groupCovers[name] = cover;
+      }
+
+      modalGroupsData.push({
+        id: modalGroupsData.length,
+        originalName: name,
+        name: name,
+        count: 0,
+        cover: cover
+      });
+
+      if (nameInput) nameInput.value = "";
+      if (coverInput) coverInput.value = "";
+
+      renderGroupSettingsList();
+      renderGroupPills();
     }
 
     function clearAllGroupCovers() {
-      if (confirm("ต้องการล้าง URL รูปปกของทุกกลุ่มใช่หรือไม่?")) {
+      if (confirm("ต้องการล้างรูปปกของทุกกลุ่มใช่หรือไม่?")) {
         groupCovers = {};
-        openGroupSettingsModal();
+        modalGroupsData.forEach(g => g.cover = "");
+        renderGroupSettingsList();
       }
-    }
-
-    function renameGroupPrompt(oldName) {
-      const newName = prompt("กรุณาระบุชื่อกลุ่มใหม่สำหรับช่องทั้งหมดในกลุ่ม [" + oldName + "]:", oldName);
-      if (!newName || !newName.trim() || newName.trim() === oldName) return;
-      
-      const cleanNew = newName.trim();
-      let affected = 0;
-      channels.forEach(c => {
-        if ((c.group || "General") === oldName) {
-          c.group = cleanNew;
-          affected++;
-        }
-      });
-
-      if (groupCovers[oldName]) {
-        groupCovers[cleanNew] = groupCovers[oldName];
-        delete groupCovers[oldName];
-      }
-
-      if (activeGroupFilter === oldName) {
-        activeGroupFilter = cleanNew;
-      }
-
-      renderChannels();
-      openGroupSettingsModal();
-      alert("✅ เปลี่ยนชื่อกลุ่มเป็น [" + cleanNew + "] สำเร็จทั้งหมด " + affected + " ช่อง");
     }
 
     function saveGroupSettingsModal() {
-      const groupCounts = {};
-      channels.forEach(c => {
-        const g = c.group || "General";
-        groupCounts[g] = true;
+      // Sync any uncommitted text inputs
+      modalGroupsData.forEach((grp, idx) => {
+        const nameInput = document.getElementById("grpNameInput_" + idx);
+        if (nameInput) grp.name = nameInput.value.trim();
+        const coverInput = document.getElementById("grpCoverInput_" + idx);
+        if (coverInput) grp.cover = coverInput.value.trim();
       });
 
-      Object.keys(groupCounts).forEach(g => {
-        const input = document.getElementById("grpInput_" + encodeURIComponent(g));
-        if (input) {
-          const val = input.value.trim();
-          if (val) {
-            groupCovers[g] = val;
-          } else {
-            delete groupCovers[g];
+      const newGroupCovers = {};
+      let renameCount = 0;
+
+      modalGroupsData.forEach(grp => {
+        const finalName = grp.name || grp.originalName || "General";
+        const oldName = grp.originalName;
+
+        // If group name was edited/renamed
+        if (oldName && finalName !== oldName) {
+          channels.forEach(c => {
+            if ((c.group || "General").trim() === oldName) {
+              c.group = finalName;
+              renameCount++;
+            }
+          });
+          if (activeGroupFilter === oldName) {
+            activeGroupFilter = finalName;
           }
+        }
+
+        if (grp.cover) {
+          newGroupCovers[finalName] = grp.cover;
         }
       });
 
+      groupCovers = newGroupCovers;
       closeGroupSettingsModal();
+      renderChannels();
       renderGroupPills();
-      alert("✅ บันทึกการตั้งค่ารูปปกกลุ่มเรียบร้อยแล้ว");
+      alert("✅ บันทึกการตั้งค่ากลุ่มและรูปปกสำเร็จ" + (renameCount > 0 ? " (เปลี่ยนชื่อกลุ่ม " + renameCount + " ช่อง)" : ""));
     }
 
     function closeGroupSettingsModal() {
@@ -1767,7 +1906,7 @@
             '<div style="font-size: 11px; color: var(--text-muted); word-break: break-all; max-width: 340px; font-family: monospace;">' + escapeHtml(ch.url) + '</div>' +
           '</td>' +
           '<td>' +
-            '<span style="background: var(--surface-subtle); padding: 3px 8px; border-radius: 6px; font-size: 11px; border: 1px solid var(--border); color: var(--text-muted);">' + escapeHtml(ch.group || 'General') + '</span>' +
+            '<span style="background: var(--surface-subtle); padding: 3px 8px; border-radius: 6px; font-size: 11px; border: 1px solid var(--border); color: var(--text-muted); cursor: pointer;" onclick="quickEditChannelGroup(' + origIdx + ')" title="คลิกเพื่อเปลี่ยนกลุ่ม">' + escapeHtml(ch.group || 'General') + ' ✏</span>' +
           '</td>' +
           '<td>' + statusBadge + '</td>' +
           '<td style="text-align: center;">' +
@@ -2603,6 +2742,22 @@
       document.body.removeChild(a);
     }
 
+    function quickEditChannelGroup(origIdx) {
+      const ch = channels[origIdx];
+      if (!ch) return;
+      const current = ch.group || "General";
+      const newGroup = prompt("เปลี่ยนชื่อกลุ่มสำหรับช่อง [" + (ch.name || "Channel") + "]:", current);
+      if (newGroup !== null) {
+        const trimmed = newGroup.trim() || "General";
+        if (trimmed !== current) {
+          ch.group = trimmed;
+          renderChannels();
+          renderGroupPills();
+          updateStats();
+        }
+      }
+    }
+
     async function saveAndGenerateRedeemCode() {
       if (channels.length === 0) {
         alert("กรุณาเพิ่มช่องรายการอย่างน้อย 1 ช่องก่อนบันทึก");
@@ -2615,7 +2770,7 @@
       }
 
       const plName = document.getElementById("plName").value.trim() || "My Playlist";
-      const author = document.getElementById("plAuthor").value.trim() || currentUser.name || "Creator";
+      const author = document.getElementById("plAuthor").value.trim() || ((currentUser && currentUser.name) ? currentUser.name : "Creator");
       const customCode = document.getElementById("plRedeemCode").value.trim().toUpperCase();
       const image = document.getElementById("plImage").value.trim();
       const info = document.getElementById("plInfo").value.trim();
@@ -2643,8 +2798,16 @@
         const res = await resp.json();
         if (res.success) {
           document.getElementById("displayRedeemCode").textContent = res.redeemCode;
-          document.getElementById("plRedeemCode").value = res.redeemCode;
           document.getElementById("redeemResultModal").style.display = "flex";
+
+          // 1. Clear editor completely to prepare for creating a new playlist
+          clearEditorForNewPlaylist();
+
+          // 2. Switch to My Playlists tab
+          switchTab("mylists");
+
+          // 3. Refresh user playlists table
+          loadMyPlaylists();
         } else {
           alert("บันทึกไม่สำเร็จ: " + (res.error || "เกิดข้อผิดพลาด"));
         }
@@ -2655,6 +2818,8 @@
 
     function closeRedeemModal() {
       document.getElementById("redeemResultModal").style.display = "none";
+      switchTab("mylists");
+      loadMyPlaylists();
     }
 
     function copyRedeemCode() {
@@ -2689,7 +2854,7 @@
             '<td style="color: var(--text-muted);">' + dateStr + '</td>' +
             '<td style="text-align: center;">' +
               '<div style="display: flex; gap: 4px; justify-content: center;">' +
-                '<button class="btn btn-primary btn-sm" onclick="loadPlaylistIntoEditor(\'' + escapeHtml(pl.redeemCode) + '\')" title="โหลดเข้าตัวแก้ไข">✏ โหลด</button>' +
+                '<button class="btn btn-primary btn-sm" onclick="loadPlaylistIntoEditor(\'' + escapeHtml(pl.redeemCode) + '\')" title="โหลดข้อมูลทั้งหมดเข้าตัวแก้ไข">✏ โหลด 100%</button>' +
                 '<button class="btn btn-secondary btn-sm" onclick="copyTextCode(\'' + escapeHtml(pl.redeemCode) + '\')" title="คัดลอกรหัส">📋 คัดลอก</button>' +
                 '<button class="btn btn-danger btn-sm" onclick="deleteUserPlaylist(\'' + escapeHtml(pl.id) + '\', \'' + escapeHtml(pl.redeemCode) + '\')" title="ลบ">🗑</button>' +
               '</div>' +
@@ -2707,24 +2872,55 @@
         const resp = await fetch(HUB_SERVER + "/api/get-protected-playlist?code=" + encodeURIComponent(code));
         const res = await resp.json();
         if (res.success && res.channels) {
-          channels = res.channels;
+          // Clear previous state completely
+          channels = [];
+          groupCovers = {};
+
+          // Populate channels 100%
+          channels = res.channels.map(ch => ({
+            name: ch.name || "Channel",
+            url: (ch.url || "").trim(),
+            group: (ch.group || "General").trim(),
+            logo: ch.logo || ch.image || "",
+            referer: ch.referer || "",
+            userAgent: ch.userAgent || ch.user_agent || "",
+            status: "unknown"
+          }));
+
+          // Populate playlist metadata 100%
           document.getElementById("plName").value = res.name || "My Playlist";
-          document.getElementById("plAuthor").value = res.author || "Creator";
+          document.getElementById("plAuthor").value = res.author || ((currentUser && currentUser.name) ? currentUser.name : "Creator");
           document.getElementById("plRedeemCode").value = res.redeemCode || code;
-          document.getElementById("plImage").value = res.image || "";
-          document.getElementById("plInfo").value = res.info || "";
+          document.getElementById("plImage").value = res.image || res.logo || "";
+          document.getElementById("plInfo").value = res.info || res.description || "";
           document.getElementById("plContact").value = res.contact || "";
-          document.getElementById("plUrl").value = res.url || "";
-          groupCovers = res.groupCovers || {};
+          document.getElementById("plUrl").value = res.url || res.website || "";
+
+          // Populate group covers 100%
+          groupCovers = (res.groupCovers && typeof res.groupCovers === "object") ? Object.assign({}, res.groupCovers) : {};
+
+          // Reset filters & page to view all channels
+          activeGroupFilter = "ALL";
+          currentPage = 1;
+          const searchInput = document.getElementById("searchChannel");
+          if (searchInput) searchInput.value = "";
+
+          // Update all UI elements 100%
           updateCoverPreview();
-          switchTab("editor");
           renderChannels();
-          alert("✅ โหลดเพลย์ลิสต์ [" + (res.name || code) + "] เข้าตัวแก้ไขเรียบร้อยแล้ว (" + channels.length + " ช่อง)");
+          renderGroupPills();
+          updateStats();
+          updateCheckButtonLabel();
+
+          // Switch to editor view
+          switchTab("editor");
+
+          alert("✅ โหลดข้อมูลเพลย์ลิสต์ [" + (res.name || code) + "] ครบถ้วน 100% เรียบร้อยแล้ว (" + channels.length + " ช่อง)");
         } else {
-          alert("ไม่พบข้อมูลเพลย์ลิสต์นี้");
+          alert("ไม่พบข้อมูลเพลย์ลิสต์นี้ หรือรหัสไม่ถูกต้อง");
         }
       } catch (err) {
-        alert("เกิดข้อผิดพลาด: " + err.message);
+        alert("เกิดข้อผิดพลาดในการโหลดเพลย์ลิสต์: " + err.message);
       }
     }
 
