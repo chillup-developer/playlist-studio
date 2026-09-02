@@ -1523,7 +1523,12 @@
         return custom.trim().replace(/\/+$/, "");
       }
       if (typeof window !== "undefined" && window.location && window.location.origin && window.location.origin.startsWith("http")) {
-        return window.location.origin;
+        const host = (window.location.hostname || "").toLowerCase();
+        // If hosted on GitHub Pages (*.github.io) or local static file preview without a custom backend server set,
+        // window.location.origin does NOT host the Cloudflare Worker API.
+        if (!host.endsWith(".github.io") && !host.includes("github.io") && !host.includes("localhost") && !host.includes("127.0.0.1") && !host.includes(".run.app")) {
+          return window.location.origin;
+        }
       }
       return "https://chillup-playlist-hub.natee-bumrungsiri.workers.dev";
     }
@@ -6055,7 +6060,14 @@
           body: payloadStr
         });
 
-        const res = await resp.json();
+        let res;
+        const text = await resp.text();
+        try {
+          res = JSON.parse(text);
+        } catch (jsonErr) {
+          throw new Error("เซิร์ฟเวอร์ตอบกลับไม่ถูกต้อง (HTTP " + resp.status + ") โปรดตรวจสอบว่า Cloudflare Worker ทำงานปกติ หรือไปที่โปรไฟล์เพื่อตรวจสอบ Hub Server URL");
+        }
+
         if (res.success) {
           // Store directly into local cache immediately for guaranteed persistence
           const savedSummary = res.playlist || {
