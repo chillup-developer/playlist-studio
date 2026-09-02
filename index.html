@@ -1497,6 +1497,13 @@
           <label class="form-label">อีเมลหรือไอดี (Email / User ID)</label>
           <input type="text" id="profileEmailInput">
         </div>
+        <div class="form-group">
+          <label class="form-label">🌐 เซิร์ฟเวอร์เป้าหมาย (Hub / License Worker URL)</label>
+          <input type="text" id="profileServerUrlInput" placeholder="เช่น https://your-worker.workers.dev (เว้นว่างไว้เพื่อใช้ค่าเริ่มต้น)">
+          <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">
+            ระบุ Worker URL ที่ต้องการเชื่อมต่อข้อมูลผู้ใช้งานและจัดเก็บเพลย์ลิสต์
+          </div>
+        </div>
         <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px;">
           <button class="btn btn-secondary" onclick="closeProfileModal()">ยกเลิก</button>
           <button class="btn btn-primary" onclick="saveProfileChanges()">บันทึก</button>
@@ -1508,8 +1515,18 @@
     <!-- LOGIC SCRIPT -->
   <script>
     const GOOGLE_CLIENT_ID = "701662894116-c4gslc2e99gmg9dhhivreedq32sbpdhh.apps.googleusercontent.com";
-    // ⚙️ เซิร์ฟเวอร์ Hub กำหนดตายตัวในโค้ดเพื่อความปลอดภัย (Hardcoded Server Endpoint)
-    const HUB_SERVER = "https://chillup-playlist-hub.natee-bumrungsiri.workers.dev";
+    
+    // ⚙️ ฟังก์ชันดึง URL ของเซิร์ฟเวอร์แบบไดนามิก (รองรับทั้งเชื่อมกับ Worker ปัจจุบัน หรือกำหนดเอง)
+    function getHubServer() {
+      const custom = localStorage.getItem("chillup_hub_server_url");
+      if (custom && custom.trim()) {
+        return custom.trim().replace(/\/+$/, "");
+      }
+      if (typeof window !== "undefined" && window.location && window.location.origin && window.location.origin.startsWith("http")) {
+        return window.location.origin;
+      }
+      return "https://chillup-playlist-hub.natee-bumrungsiri.workers.dev";
+    }
 
     let currentUser = null;
     let channels = [];
@@ -1712,7 +1729,8 @@
     async function syncUserProfileWithServer() {
       if (!currentUser || !currentUser.id) return;
       try {
-        await fetch(HUB_SERVER + "/api/user/sync-profile", {
+        const hub = getHubServer();
+        const resp = await fetch(hub + "/api/user/sync-profile", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1722,7 +1740,11 @@
             picture: currentUser.picture || ""
           })
         });
-      } catch (_) {}
+        const resJson = await resp.json();
+        console.log("User profile synced successfully to:", hub, resJson);
+      } catch (err) {
+        console.warn("syncUserProfileWithServer error:", err);
+      }
     }
 
     async function fetchAndDisplayUserQuota() {
@@ -1731,7 +1753,7 @@
       if (!textEl) return;
 
       try {
-        const resp = await fetch(HUB_SERVER + "/api/user/get-quota?userId=" + encodeURIComponent(currentUser.id));
+        const resp = await fetch(getHubServer() + "/api/user/get-quota?userId=" + encodeURIComponent(currentUser.id));
         const data = await resp.json();
         if (data.success) {
           const used = data.used || 0;
@@ -1762,6 +1784,9 @@
       if (!currentUser) return;
       document.getElementById("profileNameInput").value = currentUser.name || "";
       document.getElementById("profileEmailInput").value = currentUser.email || "";
+      const savedServer = localStorage.getItem("chillup_hub_server_url") || "";
+      const serverInput = document.getElementById("profileServerUrlInput");
+      if (serverInput) serverInput.value = savedServer;
       document.getElementById("profileModal").style.display = "flex";
     }
     function closeProfileModal() {
@@ -1770,11 +1795,21 @@
     function saveProfileChanges() {
       const n = document.getElementById("profileNameInput").value.trim();
       const e = document.getElementById("profileEmailInput").value.trim();
+      const serverInput = document.getElementById("profileServerUrlInput");
+      if (serverInput) {
+        const s = serverInput.value.trim().replace(/\/+$/, "");
+        if (s) {
+          localStorage.setItem("chillup_hub_server_url", s);
+        } else {
+          localStorage.removeItem("chillup_hub_server_url");
+        }
+      }
       if (!n || !e) return;
       currentUser.name = n;
       currentUser.email = e;
       localStorage.setItem("chillup_user", JSON.stringify(currentUser));
       updateUserUI();
+      syncUserProfileWithServer();
       closeProfileModal();
       loadMyPlaylists();
     }
@@ -2659,7 +2694,7 @@
 
       if (!content || content.includes("<!DOCTYPE") || content.startsWith("<html") || content.length < 10) {
         try {
-          const r2 = await fetch(HUB_SERVER + "/api/proxy", {
+          const r2 = await fetch(getHubServer() + "/api/proxy", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ targetUrl: url })
@@ -3004,7 +3039,7 @@
     function getStreamProxyUrl(targetUrl) {
       if (!targetUrl) return "";
       const norm = normalizePlaylistUrl(targetUrl);
-      const hub = (HUB_SERVER || "").trim().replace(/\/+$/, "");
+      const hub = getHubServer().trim().replace(/\/+$/, "");
       if (hub && !hub.startsWith("file://") && !hub.includes("localhost")) {
         return hub + "/api/stream-proxy?url=" + encodeURIComponent(norm);
       }
@@ -3200,7 +3235,7 @@
       try {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 8000);
-        const resp = await fetch(HUB_SERVER + "/api/stalker/resolve", {
+        const resp = await fetch(getHubServer() + "/api/stalker/resolve", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ stalkerUrl }),
@@ -4075,7 +4110,7 @@
 
       // 2. Proxy Fetch via Backend Cloudflare Worker
       try {
-        const proxyResp = await fetch(HUB_SERVER + "/api/proxy", {
+        const proxyResp = await fetch(getHubServer() + "/api/proxy", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -4300,7 +4335,7 @@
         // 2. If blocked by CORS or HTML error returned, fetch via Hub Proxy
         if (!content || content.includes("<!DOCTYPE") || content.startsWith("<html") || content.length < 10) {
           try {
-            const r2 = await fetch(HUB_SERVER + "/api/proxy", {
+            const r2 = await fetch(getHubServer() + "/api/proxy", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ targetUrl: url })
@@ -5590,7 +5625,7 @@
           }, { once: true });
         }
 
-        const resp = await fetch(HUB_SERVER + "/api/check-link", {
+        const resp = await fetch(getHubServer() + "/api/check-link", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -5994,7 +6029,7 @@
       }
 
       try {
-        const resp = await fetch(HUB_SERVER + "/api/user/save-playlist", {
+        const resp = await fetch(getHubServer() + "/api/user/save-playlist", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: payloadStr
@@ -6066,7 +6101,7 @@
 
       // Step 2: Fetch latest from server and merge
       try {
-        const resp = await fetch(HUB_SERVER + "/api/user/playlists?userId=" + encodeURIComponent(currentUser.id));
+        const resp = await fetch(getHubServer() + "/api/user/playlists?userId=" + encodeURIComponent(currentUser.id));
         const res = await resp.json();
 
         if (res.success && Array.isArray(res.playlists)) {
@@ -6101,7 +6136,7 @@
 
     async function loadPlaylistIntoEditor(code, plId) {
       try {
-        const resp = await fetch(HUB_SERVER + "/api/get-protected-playlist?code=" + encodeURIComponent(code));
+        const resp = await fetch(getHubServer() + "/api/get-protected-playlist?code=" + encodeURIComponent(code));
         const res = await resp.json();
         if (res.success && res.channels) {
           // Clear previous state completely
@@ -6177,7 +6212,7 @@
         removeLocalUserPlaylist(plId, code);
         renderMyPlaylistsTable();
         try {
-          await fetch(HUB_SERVER + "/api/user/delete-playlist", {
+          await fetch(getHubServer() + "/api/user/delete-playlist", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
