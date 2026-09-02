@@ -6083,6 +6083,7 @@
           // Show Success Modal
           document.getElementById("displayRedeemCode").textContent = res.redeemCode;
           document.getElementById("redeemResultModal").style.display = "flex";
+          fetchAndDisplayUserQuota();
         } else {
           alert("บันทึกไม่สำเร็จ: " + (res.error || "เกิดข้อผิดพลาด"));
         }
@@ -6148,6 +6149,7 @@
           const mergedList = Array.from(mergedMap.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
           localStorage.setItem("chillup_user_playlists_" + currentUser.id, JSON.stringify(mergedList));
           renderMyPlaylistsTable(mergedList);
+          fetchAndDisplayUserQuota();
         }
       } catch (err) {
         console.warn("loadMyPlaylists network fetch error:", err);
