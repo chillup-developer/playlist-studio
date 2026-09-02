@@ -729,7 +729,11 @@
           <div style="font-size: 12px; color: var(--text-muted);" id="userEmail">user@domain.com</div>
         </div>
       </div>
-      <div style="display: flex; gap: 8px;">
+      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+        <div id="userQuotaPill" style="display: inline-flex; align-items: center; gap: 6px; background: rgba(56,189,248,0.1); border: 1px solid rgba(56,189,248,0.3); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600;" title="โควตาการบันทึกเพลย์ลิสต์ของคุณ">
+          <span>📁 โควตา:</span>
+          <span id="userQuotaText" style="color: var(--primary);">กำลังโหลด...</span>
+        </div>
         <button class="btn btn-secondary btn-sm" onclick="openProfileModal()">แก้ไขโปรไฟล์</button>
         <button class="btn btn-danger btn-sm" onclick="logout()">ออกจากระบบ</button>
       </div>
@@ -1699,6 +1703,58 @@
         avatar.innerHTML = '<img src="' + escapeHtml(currentUser.picture) + '" style="width: 100%; height: 100%; border-radius: 50%;">';
       } else {
         avatar.textContent = (currentUser.name || "U").charAt(0).toUpperCase();
+      }
+
+      fetchAndDisplayUserQuota();
+      syncUserProfileWithServer();
+    }
+
+    async function syncUserProfileWithServer() {
+      if (!currentUser || !currentUser.id) return;
+      try {
+        await fetch(HUB_SERVER + "/api/user/sync-profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: currentUser.id,
+            name: currentUser.name,
+            email: currentUser.email,
+            picture: currentUser.picture || ""
+          })
+        });
+      } catch (_) {}
+    }
+
+    async function fetchAndDisplayUserQuota() {
+      if (!currentUser || !currentUser.id) return;
+      const textEl = document.getElementById("userQuotaText");
+      if (!textEl) return;
+
+      try {
+        const resp = await fetch(HUB_SERVER + "/api/user/get-quota?userId=" + encodeURIComponent(currentUser.id));
+        const data = await resp.json();
+        if (data.success) {
+          const used = data.used || 0;
+          const maxQ = data.maxQuota;
+          const isUnlimited = data.isUnlimited;
+
+          if (isUnlimited) {
+            textEl.innerHTML = `<b>${used}</b> / ∞ (ไม่จำกัด)`;
+            textEl.style.color = "var(--primary)";
+          } else {
+            textEl.innerHTML = `<b>${used}</b> / ${maxQ} รายการ`;
+            if (used >= maxQ) {
+              textEl.style.color = "var(--danger)";
+            } else if (used >= maxQ * 0.8) {
+              textEl.style.color = "var(--warning)";
+            } else {
+              textEl.style.color = "var(--primary)";
+            }
+          }
+        }
+      } catch (_) {
+        const local = getLocalUserPlaylists();
+        textEl.textContent = `${local.length} รายการ`;
       }
     }
 
